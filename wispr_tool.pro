@@ -508,6 +508,10 @@ common SynthFITS,hdr_Inner_0,hdr_Outer_0,img_Inner_0,img_Outer_0,datadir,epoch,e
 hdr_Inner = hdr_Inner_0
 hdr_Outer = hdr_Outer_0
 
+; Update .DATE_OBS
+hdr_Inner.DATE_OBS =  strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
+hdr_Outer.DATE_OBS =  strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
+
 ; Create filenames
 filename_Inner = hdr_Inner.DATE_OBS+'_Inner_Blank.fits'
 filename_Outer = hdr_Inner.DATE_OBS+'_Outer_Blank.fits'
@@ -515,10 +519,6 @@ filename_Outer = hdr_Inner.DATE_OBS+'_Outer_Blank.fits'
 ; Update .FILENAME
 hdr_Inner.FILENAME = filename_Inner
 hdr_Outer.FILENAME = filename_Outer
-
-; Update .DATE_OBS
-hdr_Inner.DATE_OBS =  strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
-hdr_Outer.DATE_OBS =  strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
 
 ; Update .DSUN_OBS, distance [m] to Sun Center
 hdr_Inner.DSUN_OBS = dist_SUN_SPP ; m

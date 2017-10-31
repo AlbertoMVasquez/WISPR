@@ -18,7 +18,7 @@
 pro wispr_tool,loadk=loadk,correction=correction,SciOrbBrief=SciOrbBrief,ExtendedOrbits=ExtendedOrbits,FullList=FullList,ShortList=ShortList,CreateFITS=CreateFITS,Outdir=Outdir,basedir=basedir
 
 common constants,c,rsun,au
-common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec
+common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
 common output,listtype
 common indexes,i,j
 common SynthFITS,hdr_Inner_0,hdr_Outer_0,img_Inner_0,img_Outer_0,datadir,epoch,et
@@ -104,12 +104,15 @@ endif
   flag_science_region = 0 
 ; Make output table of ephemeris for the selected ETs
   openfile,filename
+  count=1
   for i=0,Norbits-1 do begin
   writekeys
   for j=0,Nepochs-1 do begin  
   epoch = EpochArray[i,j]
      et = ETarray   [i,j]
   get_SPP_ephemeris,epoch=epoch,et=et,abcorr=abcorr;,/printout
+  print,'Done with date',count,' of',Norbits*Nepochs
+  count=count+1
   if flag_science_region eq 0 AND dist_SUN_SPP/au le science_limit then begin
      flag_science_region = 1
      point_line
@@ -137,7 +140,7 @@ end
 pro ephemeris_wispr,epoch=epoch,correction=correction,loadk=loadk,SciOrbNum=SciOrbNumb,FullList=FullList,ShortList=ShortList
 
 common constants,c,rsun,au
-common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec
+common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
 common output,listtype
 common orbitnum,SciOrbNum
 
@@ -178,8 +181,7 @@ end
 pro get_SPP_ephemeris,epoch=epoch,et=et,abcorr=abcorr,printout=printout
 
 common constants,c,rsun,au
-common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec
-
+common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
       ;; Define parameters for a position lookup:
      ; Return the position vector of SPP as seen from SUN in the J2000 at the EPOCH
       observer = 'SUN'
@@ -202,7 +204,7 @@ skip_earth:
       ;; Look-up the position for SPP:
       target   = 'SPP'
       cspice_spkpos, target, et, frame, abcorr, observer, ptarg, ltime
-      sun_spp_vector_J2000 = ptarg[0:2] * 1.e3 ; m
+      sun_spp_vector_J2000 = ptarg[0:2] * 1.e3           ; m
       dist_SUN_SPP = sqrt(total(sun_spp_vector_J2000^2)) ; m
       ; cspice_vnorm(sun_spp_vector_J2000) gives the exact same result.
 
@@ -212,8 +214,18 @@ skip_earth:
       sun_spp_vector_HAE = get_sunspice_coord( date, spacecraft, system='HAE',/novelocity,/meters) ; m
       sun_spp_vector_HEE = get_sunspice_coord( date, spacecraft, system='HEE',/novelocity,/meters) ; m
       sun_spp_vector_HEQ = get_sunspice_coord( date, spacecraft, system='HEQ',/novelocity,/meters) ; m
-      dist_SUN_SPP_2     = sqrt(total(sun_spp_vector_HCI^2))
-      stop
+      
+      dist_SUN_SPP_HCI   = sqrt(total(sun_spp_vector_HCI^2)) ; m
+      dist_SUN_SPP_HAE   = sqrt(total(sun_spp_vector_HAE^2))                                       ; m
+      dist_SUN_SPP_HEE   = sqrt(total(sun_spp_vector_HEE^2))                                       ; m
+      dist_SUN_SPP_HEQ   = sqrt(total(sun_spp_vector_HEQ^2))                                       ; m
+      
+;     Make sure all distances match within EPS accuracy
+      EPS=1.e-5
+      if abs(1.-dist_SUN_SPP/dist_SUN_SPP_HCI) gt EPS OR abs(1.-dist_SUN_SPP/dist_SUN_SPP_HAE) gt EPS OR abs(1.-dist_SUN_SPP/dist_SUN_SPP_HEE) gt EPS OR abs(1.-dist_SUN_SPP/dist_SUN_SPP_HEQ) gt EPS then begin
+       print,'Coordinate results from cspice_spkpos and get_sunspice_coord do not match.'
+       STOP
+      endif
       
       if keyword_set(printout) then begin
       print, 'The position of: '+target+', as observed from: '+observer+', in the reference frame: '+frame+', at EPOCH: '+EPOCH+', is:'
@@ -225,7 +237,7 @@ skip_earth:
 
     ;Sub-spacecraft Carrington calculation
      target_ID = 'SPP'
-;    target_ID = 'EARTH'
+ ;   target_ID = 'EARTH'
      frame = 'IAU_SUN'
      cspice_spkezr, target_ID, et, frame, abcorr, observer, kernel_targ1, kernel_ltime
 						xcomp_au_start = kernel_targ1[0,0] / au
@@ -234,19 +246,51 @@ skip_earth:
 						Dist_xy_start=cspice_vnorm([xcomp_au_start, ycomp_au_start, 0])
 						long_start = atan(ycomp_au_start,xcomp_au_start)*180/!Pi
 						lat_start = atan(zcomp_au_start,Dist_xy_start)*180/!Pi
-						lon_string = STRTRIM(long_start,2)
+						vec = [0,0,0] ; Sun
+                                                dis = get_dis( kernel_targ1[0:2,0], vec ) * 1.e3 ; m
+
+
+                                                if long_start lt 0. then long_start = long_start + 360.
+                                                
+;  Recompute sub-SPP lat lon using Bill's routine
+   frame = 'Carrington'
+   r_CARR = get_sunspice_lonlat( date, spacecraft, system=frame,/meters,/degrees)
+   
+;  Make sure both results match within EPS accuracy
+   print,abs(1.-r_carr[0]/dis), abs(1.-r_carr[1]/long_start), abs(1.-r_carr[2]/lat_start)
+   EPS=1.e-2
+   if abs(1.-r_carr[0]/dis) gt EPS OR abs(1.-r_carr[1]/long_start) gt EPS OR abs(1.-r_carr[2]/lat_start) gt EPS then begin
+      print,'Coordinate results from cspice_spkezr and get_sunspice_lonlat do not match.'
+      STOP
+   endif
+ 
+;  Use Bill's routine output:
+   dis        = r_CARR[0] ; m
+   long_start = r_CARR[1] ; deg
+   lat_start  = r_CARR[2] ; deg
+
+   						lon_string = STRTRIM(long_start,2)
 						lat_string = STRTRIM(lat_start,2)
 						IF long_start GE 0 then lon_string = '+' + lon_string
-						IF lat_start  GE 0 then lat_string = '+' + lat_string
-						vec = [0,0,0] ; Sun
-						dis = get_dis( kernel_targ1[0:2,0], vec )
-
-if keyword_set(printout) then begin
+                                                IF lat_start  GE 0 then lat_string = '+' + lat_string
+                                                
+   goto,skip_test
+   epoch_test = '2009-03-16  12:01:00.005'  
+   cspice_str2et, epoch_test, et_test
+   date_test = strmid(epoch_test,0,10)+'T'+strmid(epoch_test,12,13)
+   spacecraft_test = 'STEREO_A'
+   frame_test = 'Carr'
+   r_CARR = get_sunspice_lonlat( date_test, spacecraft_test, system=frame_test,/meters)
+   print,r_CARR[0],r_CARR[1:2]/!dtor
+   STOP
+   skip_test:
+   
+ if keyword_set(printout) then begin
    print,'Calculation of distance between '+OBSERVER+' and '+TARGET+', using frame '+frame+': '+strtrim(dis,2)+' km.'
    print,'Carrington Longitude: ' + lon_string + ' deg'
    print,'Latitude:             ' + lat_string + ' deg'
    print
-endif
+ endif
 
       goto,skip
       SPP_WISPR_INNER_NAIF_ID = -96100
@@ -355,7 +399,7 @@ pro writedata,terminal=terminal,SciOrbNum=SciOrbNum,epocharray=epocharray,etarra
 common output,listtype
 common constants,c,rsun,au
 common indexes,i,j
-common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec
+common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
 
 if NOT keyword_set(terminal) then begin
 
@@ -457,7 +501,7 @@ END
 
 pro Create_FITS
 common constants,c,rsun,au
-common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec
+common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
 common SynthFITS,hdr_Inner_0,hdr_Outer_0,img_Inner_0,img_Outer_0,datadir,epoch,et
 
 ; Create HDR equal to "TestImages" Header
@@ -477,8 +521,8 @@ hdr_Inner.DATE_OBS =  strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
 hdr_Outer.DATE_OBS =  strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
 
 ; Update .DSUN_OBS, distance [m] to Sun Center
-hdr_Inner.DSUN_OBS = dist_SUN_SPP * 1.d3
-hdr_Outer.DSUN_OBS = dist_SUN_SPP * 1.d3
+hdr_Inner.DSUN_OBS = dist_SUN_SPP ; m
+hdr_Outer.DSUN_OBS = dist_SUN_SPP ; m
 
 ; Update .CRPIX1
 hdr_Inner.CRPIX1 = Pos_SunCenter_px_inner[0]
@@ -494,27 +538,51 @@ hdr_Outer.cdelt1 = px_outer_arcsec
 
 ; Expand HEADERS with other needed variables
 
+common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
+
 hdr_Inner = create_struct(hdr_Inner,$
-            'CRLN_OBS',long_start,$
-            'CRLT_OBS', lat_start,$
-            'crota'   , 0.,$
-    	    'posx_obs',sun_spp_vector_J2000[0],$
-    	    'posy_obs',sun_spp_vector_J2000[1],$
-    	    'posz_obs',sun_spp_vector_J2000[2]) ; km
+            'CRLN_OBS'  ,long_start,$
+            'CRLT_OBS'  , lat_start,$
+            'crota'     , 0.,$
+    	    'J2kX_OBS'  ,sun_spp_vector_J2000[0],$
+    	    'J2kY_OBS'  ,sun_spp_vector_J2000[1],$
+            'J2kZ_OBS'  ,sun_spp_vector_J2000[2],$
+            'HCIX_OBS'  ,sun_spp_vector_HCI  [0],$
+            'HCIY_OBS'  ,sun_spp_vector_HCI  [1],$
+            'HCIZ_OBS'  ,sun_spp_vector_HCI  [2],$
+            'HAEX_OBS'  ,sun_spp_vector_HAE  [0],$
+            'HAEY_OBS'  ,sun_spp_vector_HAE  [1],$
+            'HAEZ_OBS'  ,sun_spp_vector_HAE  [2],$
+            'HEEX_OBS'  ,sun_spp_vector_HEE  [0],$
+            'HEEY_OBS'  ,sun_spp_vector_HEE  [1],$
+            'HEEZ_OBS'  ,sun_spp_vector_HEE  [2],$
+            'HEQX_OBS'  ,sun_spp_vector_HEQ  [0],$
+            'HEQY_OBS'  ,sun_spp_vector_HEQ  [1],$
+            'HEQZ_OBS'  ,sun_spp_vector_HEQ  [2] )
 
 hdr_Outer = create_struct(hdr_Outer,$
-            'CRLN_OBS',long_start,$
-            'CRLT_OBS', lat_start,$
-            'crota'   , 0.,$
-            'posx_obs',sun_spp_vector_J2000[0],$
-    	    'posy_obs',sun_spp_vector_J2000[1],$
-    	    'posz_obs',sun_spp_vector_J2000[2]) ; km
+            'CRLN_OBS'  ,long_start,$
+            'CRLT_OBS'  , lat_start,$
+            'crota'     , 0.,$
+    	    'J2kX_OBS'  ,sun_spp_vector_J2000[0],$
+    	    'J2kY_OBS'  ,sun_spp_vector_J2000[1],$
+            'J2kZ_OBS'  ,sun_spp_vector_J2000[2],$
+            'HCIX_OBS'  ,sun_spp_vector_HCI  [0],$
+            'HCIY_OBS'  ,sun_spp_vector_HCI  [1],$
+            'HCIZ_OBS'  ,sun_spp_vector_HCI  [2],$
+            'HAEX_OBS'  ,sun_spp_vector_HAE  [0],$
+            'HAEY_OBS'  ,sun_spp_vector_HAE  [1],$
+            'HAEZ_OBS'  ,sun_spp_vector_HAE  [2],$
+            'HEEX_OBS'  ,sun_spp_vector_HEE  [0],$
+            'HEEY_OBS'  ,sun_spp_vector_HEE  [1],$
+            'HEEZ_OBS'  ,sun_spp_vector_HEE  [2],$
+            'HEQX_OBS'  ,sun_spp_vector_HEQ  [0],$
+            'HEQY_OBS'  ,sun_spp_vector_HEQ  [1],$
+            'HEQZ_OBS'  ,sun_spp_vector_HEQ  [2] )
 
 ; Write FITS files to disk
 mwritefits,hdr_Inner,img_Inner_0,outfile=datadir+filename_Inner
 mwritefits,hdr_Outer,img_Outer_0,outfile=datadir+filename_Outer
-
-stop
 
 return
 end

@@ -202,13 +202,18 @@ skip_earth:
       ;; Look-up the position for SPP:
       target   = 'SPP'
       cspice_spkpos, target, et, frame, abcorr, observer, ptarg, ltime
-      sun_spp_vector_J2000 = ptarg[0:2] ; km
-      dist_SUN_SPP = sqrt(total(sun_spp_vector_J2000^2)) ; cspice_vnorm(sun_spp_vector_J2000) gives the exact same result.
+      sun_spp_vector_J2000 = ptarg[0:2] * 1.e3 ; m
+      dist_SUN_SPP = sqrt(total(sun_spp_vector_J2000^2)) ; m
+      ; cspice_vnorm(sun_spp_vector_J2000) gives the exact same result.
 
-      spacecraft = -96
-      date       = strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
-      frame      = 'HAE'
-      state      = get_sunspice_coord( date, spacecraft, system=frame)
+      spacecraft         = 'PSP';-96
+      date               = strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
+      sun_spp_vector_HCI = get_sunspice_coord( date, spacecraft, system='HCI',/novelocity,/meters) ; m
+      sun_spp_vector_HAE = get_sunspice_coord( date, spacecraft, system='HAE',/novelocity,/meters) ; m
+      sun_spp_vector_HEE = get_sunspice_coord( date, spacecraft, system='HEE',/novelocity,/meters) ; m
+      sun_spp_vector_HEQ = get_sunspice_coord( date, spacecraft, system='HEQ',/novelocity,/meters) ; m
+      dist_SUN_SPP_2     = sqrt(total(sun_spp_vector_HCI^2))
+      stop
       
       if keyword_set(printout) then begin
       print, 'The position of: '+target+', as observed from: '+observer+', in the reference frame: '+frame+', at EPOCH: '+EPOCH+', is:'

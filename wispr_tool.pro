@@ -11,8 +11,8 @@
 ; CALL SEQUENCE: wispr_tool, /loadk
 ;
 ; HISTORY
-; A.M. Vasquez -  Oct-15-2017 - Version 1.0
-;
+; A.M. Vasquez   - Oct-15-2017 - Version 1.0
+;                - Oct-31-2017 - Version 2.0, first one fully functional that produces Blank FITS files for all selected dates.
 ;;
 
 pro wispr_tool,loadk=loadk,correction=correction,SciOrbBrief=SciOrbBrief,ExtendedOrbits=ExtendedOrbits,FullList=FullList,ShortList=ShortList,CreateFITS=CreateFITS,Outdir=Outdir,basedir=basedir
@@ -32,6 +32,8 @@ if keyword_set(ShortList) then begin
   listtype = 'short'
   filename = 'table_spp_orbits_short.dat'
 endif
+
+filename2  = 'table_relative_difference_rad_lon_lat.dat'
 
 if NOT keyword_set(Outdir) then Outdir='../TestImage/'
 
@@ -103,10 +105,12 @@ endif
   science_limit       = 0.25 ; AU
   flag_science_region = 0 
 ; Make output table of ephemeris for the selected ETs
-  openfile,filename
+  openfile,1,filename
+  openfile,2,filename2
+  writekeys2,fileID=2
   count=1
   for i=0,Norbits-1 do begin
-  writekeys
+  writekeys,fileID=1
   for j=0,Nepochs-1 do begin  
   epoch = EpochArray[i,j]
      et = ETarray   [i,j]
@@ -115,18 +119,18 @@ endif
   count=count+1
   if flag_science_region eq 0 AND dist_SUN_SPP/au le science_limit then begin
      flag_science_region = 1
-     point_line
+     dot_line,fileID=1
   endif
   if flag_science_region eq 1 AND dist_SUN_SPP/au gt science_limit then begin
      flag_science_region = 0
-     point_line
+     dot_line,fileID=1
   endif
-  writedata,SciOrbNum=SciOrbNum,epocharray=epocharray,etarray=etarray
+  writedata,fileID=1,SciOrbNum=SciOrbNum,epocharray=epocharray,etarray=etarray
   if keyword_set(CreateFITS) then Create_FITS
   endfor
   endfor
-  dash_line
-  closefile
+  dash_line,fileID=1
+  closefiles
  
   ; It's always good form to unload kernels after use, particularly in IDL due to data persistence.
   cspice_kclear
@@ -215,7 +219,7 @@ skip_earth:
       sun_spp_vector_HEE = get_sunspice_coord( date, spacecraft, system='HEE',/novelocity,/meters) ; m
       sun_spp_vector_HEQ = get_sunspice_coord( date, spacecraft, system='HEQ',/novelocity,/meters) ; m
       
-      dist_SUN_SPP_HCI   = sqrt(total(sun_spp_vector_HCI^2)) ; m
+      dist_SUN_SPP_HCI   = sqrt(total(sun_spp_vector_HCI^2))                                       ; m
       dist_SUN_SPP_HAE   = sqrt(total(sun_spp_vector_HAE^2))                                       ; m
       dist_SUN_SPP_HEE   = sqrt(total(sun_spp_vector_HEE^2))                                       ; m
       dist_SUN_SPP_HEQ   = sqrt(total(sun_spp_vector_HEQ^2))                                       ; m
@@ -257,7 +261,7 @@ skip_earth:
    r_CARR = get_sunspice_lonlat( date, spacecraft, system=frame,/meters,/degrees)
    
 ;  Make sure both results match within EPS accuracy
-   print,abs(1.-r_carr[0]/dis), abs(1.-r_carr[1]/long_start), abs(1.-r_carr[2]/lat_start)
+   printf,2,abs(1.-r_carr[0]/dis), abs(1.-r_carr[1]/long_start), abs(1.-r_carr[2]/lat_start)
    EPS=1.e-2
    if abs(1.-r_carr[0]/dis) gt EPS OR abs(1.-r_carr[1]/long_start) gt EPS OR abs(1.-r_carr[2]/lat_start) gt EPS then begin
       print,'Coordinate results from cspice_spkezr and get_sunspice_lonlat do not match.'
@@ -385,17 +389,17 @@ Distances_SUN_FOV_outer_px   = [D_SunCenter_outer_EastEdge_px,D_SunCenter_outer_
 return
 end
 
-pro openfile,filename
-openw,1,filename
+pro openfile,n,filename
+openw,n,filename
 return
 end
 
-pro closefile
+pro closefiles
 close,/all
 return
 end
 
-pro writedata,terminal=terminal,SciOrbNum=SciOrbNum,epocharray=epocharray,etarray=etarray
+pro writedata,fileID=fileID,terminal=terminal,SciOrbNum=SciOrbNum,epocharray=epocharray,etarray=etarray
 common output,listtype
 common constants,c,rsun,au
 common indexes,i,j
@@ -404,7 +408,7 @@ common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, P
 if NOT keyword_set(terminal) then begin
 
 if listtype eq 'full' then $  
-  printf,1,SciOrbNum[i],epocharray[i,j],etarray[i,j],$
+  printf,fileID,SciOrbNum[i],epocharray[i,j],etarray[i,j],$
            sun_spp_vector_J2000, dist_SUN_SPP, dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
            long_start, lat_start,$
            Pos_SunCenter_px_inner, Pos_SunCenter_px_outer,$
@@ -412,7 +416,7 @@ if listtype eq 'full' then $
            Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,$
            format='(1(I4),1(A22),1(E19.10),4(F14.2),2(F10.4),2(F10.2),10(F10.1),6(F10.4))'
 if listtype eq 'short' then $  
-  printf,1,SciOrbNum[i],epocharray[i,j],$
+  printf,fileID,SciOrbNum[i],epocharray[i,j],$
            dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
            long_start, lat_start,$
            Distances_SUN_FOV_inner_Rsun([0,2]), Distances_SUN_FOV_outer_Rsun([0,2]),$
@@ -439,7 +443,7 @@ endelse
 return
 end
 
-pro writekeys,terminal=terminal
+pro writekeys,fileID=fileID,terminal=terminal
 common output,listtype
 
 if listtype eq 'full'  then begin  
@@ -451,10 +455,10 @@ string2='   #                          [Rsun]      [AU]     [deg]     [deg]    [
 endelse
 
 if not keyword_set(terminal) then begin
-dash_line
-printf,1,string1
-printf,1,string2
-dash_line
+dash_line,fileID=fileID
+printf,fileID,string1
+printf,fileID,string2
+dash_line,fileID=fileID
 endif else begin
 dash_line,/terminal
 print,string1
@@ -465,32 +469,37 @@ endelse
 return
 end
 
-pro dash_line,terminal=terminal
+pro writekeys2,fileID=fileID
+printf,fileID,'FracDiff(r),FracDiff(Lon),FracDiff(Lat)'
+return
+end
+
+pro dash_line,fileID=fileID,terminal=terminal
   common output,listtype
 if listtype eq 'full'  then $
 string1='-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
 if listtype eq 'short' then $
 string1='----------------------------------------------------------------------------------------------------------'
-if not keyword_set(terminal) then printf,1,string1
-if     keyword_set(terminal) then print ,  string1
+if not keyword_set(terminal) then printf,fileID,string1
+if     keyword_set(terminal) then print        ,string1
 return
 end
 
-pro point_line
+pro dot_line,fileID=fileID
 common output,listtype
 if listtype eq 'full'  then $
-printf,1,'  ...........................................................................................................................................................................................................................................................................................................'
+printf,fileID,'  ...........................................................................................................................................................................................................................................................................................................'
 if listtype eq 'short' then $
-printf,1,'  .......................................................................................................'
+printf,fileID,'  .......................................................................................................'
 return
 end
 
 pro loadconstants
 common constants,c,rsun,au
 ; Set useful constants
-  c    = 299792.458      ; km/sec
-  rsun = 695700.         ; km 
-  au   = 149.597870700e6 ; km
+  c    = 299792.458e3    ; m/sec
+  rsun = 695700.e3       ; m 
+  au   = 149.597870700e9 ; m
 return
 end
 
@@ -513,8 +522,8 @@ hdr_Inner.DATE_OBS =  strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
 hdr_Outer.DATE_OBS =  strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
 
 ; Create filenames
-filename_Inner = hdr_Inner.DATE_OBS+'_Inner_Blank.fits'
-filename_Outer = hdr_Inner.DATE_OBS+'_Outer_Blank.fits'
+filename_Inner = 'WISPR_I_'+hdr_Inner.DATE_OBS+'_Blank.fts'
+filename_Outer = 'WISPR_O_'+hdr_Inner.DATE_OBS+'_Blank.fts'
 
 ; Update .FILENAME
 hdr_Inner.FILENAME = filename_Inner
@@ -537,8 +546,6 @@ hdr_Inner.cdelt1 = px_inner_arcsec
 hdr_Outer.cdelt1 = px_outer_arcsec
 
 ; Expand HEADERS with other needed variables
-
-common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
 
 hdr_Inner = create_struct(hdr_Inner,$
             'CRLN_OBS'  ,long_start,$

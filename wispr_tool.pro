@@ -409,7 +409,7 @@ if NOT keyword_set(terminal) then begin
 
 if listtype eq 'full' then $  
   printf,fileID,SciOrbNum[i],epocharray[i,j],etarray[i,j],$
-           sun_spp_vector_J2000, dist_SUN_SPP, dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
+           sun_spp_vector_J2000/1.e3, dist_SUN_SPP, dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
            long_start, lat_start,$
            Pos_SunCenter_px_inner, Pos_SunCenter_px_outer,$
            Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,$
@@ -426,7 +426,7 @@ endif else begin
 
 if listtype eq 'full' then $  
   print   ,SciOrbNum,epocharray,etarray,$
-           sun_spp_vector_J2000, dist_SUN_SPP, dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
+           sun_spp_vector_J2000/1.e3, dist_SUN_SPP, dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
            long_start, lat_start,$
            Pos_SunCenter_px_inner, Pos_SunCenter_px_outer,$
            Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,$

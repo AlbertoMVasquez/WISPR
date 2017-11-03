@@ -54,9 +54,14 @@ if NOT keyword_set(Outdir) then Outdir='../TestImage/'
      if not keyword_set(basedir) then basedir='/data1/'
      mreadfits,basedir+'work/SPP/TestImage/WISPR-EM3_FM1_Inner.fits',hdr_Inner_0,img_Inner_0
      mreadfits,basedir+'work/SPP/TestImage/WISPR-EM3_FM1_Outer.fits',hdr_Outer_0,img_Outer_0
-     img_Inner_0 = 0. * img_Inner_0
-     img_Outer_0 = 0. * img_Outer_0
+    ;In project v1.0 make FOVs square for simplicity in tom codes:
+     hdr_Inner_0.NAXIS2 = hdr_Inner_0.NAXIS1
+     hdr_Outer_0.NAXIS2 = hdr_Outer_0.NAXIS1
+    ;Create BLANK float images
+     img_Inner_0 = fltarr(hdr_Inner_0.NAXIS1,hdr_Inner_0.NAXIS2)
+     img_Outer_0 = fltarr(hdr_Outer_0.NAXIS1,hdr_Outer_0.NAXIS2)
      datadir=Outdir
+     stop
   endif
      
   ; set correction parameter
@@ -330,6 +335,7 @@ skip_earth:
 ; FOVs width and height in Pixels:
   FOVW_px = 2048.
   FOVH_px = 1920.
+  FOVH_px = 2048. ; for project v1.0 make FOV square
   
 ; FOVs widths in Rsun:
   FOVW_inner_rsun = (D_SunCenter_inner_WestEdge-D_SunCenter_inner_EastEdge)/rsun

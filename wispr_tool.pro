@@ -61,7 +61,6 @@ if NOT keyword_set(Outdir) then Outdir='../TestImage/'
      img_Inner_0 = fltarr(hdr_Inner_0.NAXIS1,hdr_Inner_0.NAXIS2)
      img_Outer_0 = fltarr(hdr_Outer_0.NAXIS1,hdr_Outer_0.NAXIS2)
      datadir=Outdir
-     stop
   endif
      
   ; set correction parameter
@@ -556,7 +555,7 @@ hdr_Outer.cdelt1 = px_outer_arcsec
 hdr_Inner = create_struct(hdr_Inner,$
             'CRLN_OBS'  ,long_start,$
             'CRLT_OBS'  , lat_start,$
-            'crota'     , 0.,$
+            'CROTA'     , 0.,$
     	    'J2kX_OBS'  ,sun_spp_vector_J2000[0],$
     	    'J2kY_OBS'  ,sun_spp_vector_J2000[1],$
             'J2kZ_OBS'  ,sun_spp_vector_J2000[2],$
@@ -576,7 +575,7 @@ hdr_Inner = create_struct(hdr_Inner,$
 hdr_Outer = create_struct(hdr_Outer,$
             'CRLN_OBS'  ,long_start,$
             'CRLT_OBS'  , lat_start,$
-            'crota'     , 0.,$
+            'CROTA'     , 0.,$
     	    'J2kX_OBS'  ,sun_spp_vector_J2000[0],$
     	    'J2kY_OBS'  ,sun_spp_vector_J2000[1],$
             'J2kZ_OBS'  ,sun_spp_vector_J2000[2],$

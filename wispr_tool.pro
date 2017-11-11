@@ -313,8 +313,8 @@ skip_earth:
       wispr_inner_Z_angle = 32.2 * !dtor ; rad
       wispr_outer_Z_angle = 77.0 * !dtor ; rad
       
-      D_SunCenter_inner_Center = dist_SUN_SPP * sin(wispr_inner_Z_angle) ; km
-      D_SunCenter_outer_Center = dist_SUN_SPP * sin(wispr_outer_Z_angle) ; km
+      D_SunCenter_inner_Center = dist_SUN_SPP * sin(wispr_inner_Z_angle) ; m
+      D_SunCenter_outer_Center = dist_SUN_SPP * sin(wispr_outer_Z_angle) ; m
 
       wispr_inner_FOV_angle = 40.9 * !dtor ; rad
       wispr_outer_FOV_angle = 59.2 * !dtor ; rad
@@ -322,14 +322,14 @@ skip_earth:
       alpha_inner = wispr_inner_Z_angle
        beta_inner = alpha_inner - wispr_inner_FOV_angle / 2.
       gamma_inner = !pi/2.      + wispr_inner_FOV_angle / 2.
-      D_SunCenter_inner_EastEdge = dist_SUN_SPP * sin(beta_inner) / sin(gamma_inner)
-      D_SunCenter_inner_WestEdge = 2.* D_SunCenter_inner_Center - D_SunCenter_inner_EastEdge 
+      D_SunCenter_inner_EastEdge = dist_SUN_SPP * sin(beta_inner) / sin(gamma_inner)         ;m
+      D_SunCenter_inner_WestEdge = 2.* D_SunCenter_inner_Center - D_SunCenter_inner_EastEdge ;m
 
       alpha_outer = wispr_outer_Z_angle
        beta_outer = alpha_outer - wispr_outer_FOV_angle / 2.
       gamma_outer = !pi/2.      + wispr_outer_FOV_angle / 2.
-      D_SunCenter_outer_EastEdge = dist_SUN_SPP * sin(beta_outer) / sin(gamma_outer)
-      D_SunCenter_outer_WestEdge = 2.* D_SunCenter_outer_Center - D_SunCenter_outer_EastEdge 
+      D_SunCenter_outer_EastEdge = dist_SUN_SPP * sin(beta_outer) / sin(gamma_outer)         ;m
+      D_SunCenter_outer_WestEdge = 2.* D_SunCenter_outer_Center - D_SunCenter_outer_EastEdge ;m
 
 ; FOVs width and height in Pixels:
   FOVW_px = 2048.
@@ -414,7 +414,7 @@ if NOT keyword_set(terminal) then begin
 
 if listtype eq 'full' then $  
   printf,fileID,SciOrbNum[i],epocharray[i,j],etarray[i,j],$
-           sun_spp_vector_J2000/1.e3, dist_SUN_SPP, dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
+           sun_spp_vector_J2000/1.e3, dist_SUN_SPP/1.e3, dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
            long_start, lat_start,$
            Pos_SunCenter_px_inner, Pos_SunCenter_px_outer,$
            Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,$
@@ -431,7 +431,7 @@ endif else begin
 
 if listtype eq 'full' then $  
   print   ,SciOrbNum,epocharray,etarray,$
-           sun_spp_vector_J2000/1.e3, dist_SUN_SPP, dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
+           sun_spp_vector_J2000/1.e3, dist_SUN_SPP/1.e3, dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
            long_start, lat_start,$
            Pos_SunCenter_px_inner, Pos_SunCenter_px_outer,$
            Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,$

@@ -57,12 +57,21 @@ if NOT keyword_set(Outdir) then Outdir='../TestImage/'
     ;In project v1.0 make FOVs square for simplicity in tom codes:
      hdr_Inner_0.NAXIS2 = hdr_Inner_0.NAXIS1
      hdr_Outer_0.NAXIS2 = hdr_Outer_0.NAXIS1
-    ;Create BLANK float images
-     img_Inner_0 = fltarr(hdr_Inner_0.NAXIS1,hdr_Inner_0.NAXIS2)
-     img_Outer_0 = fltarr(hdr_Outer_0.NAXIS1,hdr_Outer_0.NAXIS2)
+    ;Create SQUARED float images with the Test image wiithin it:
+     tmp_Inner = fltarr(hdr_Inner_0.NAXIS1,hdr_Inner_0.NAXIS2)
+     tmp_Outer = fltarr(hdr_Outer_0.NAXIS1,hdr_Outer_0.NAXIS2)
+     naxis2_original = 1920
+     naxis2          = 2048
+     index0 = (naxis2-naxis2_original)/2
+     tmp_Inner(*,index0:index0+naxis2_original-1) = img_Inner_0
+     tmp_Outer(*,index0:index0+naxis2_original-1) = img_Outer_0
+     img_Inner_0 = tmp_Inner
+     img_Outer_0 = tmp_Outer
+     p = where(img_Inner_0 eq 0.) & if p[0] ne -1 then img_Inner_0(p)=-1.
+     p = where(img_Outer_0 eq 0.) & if p[0] ne -1 then img_Outer_0(p)=-1.
      datadir=Outdir
   endif
-     
+  
   ; set correction parameter
   if not keyword_set(correction) then abcorr = 'NONE'
 

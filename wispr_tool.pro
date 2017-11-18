@@ -12,13 +12,19 @@
 ;
 ; HISTORY
 ; A.M. Vasquez   - Oct-15-2017 - Version 1.0
-;                - Oct-31-2017 - Version 2.0, first one fully functional that produces Blank FITS files for all selected dates.
+;                - Oct-31-2017 - Version 2.0, first one fully funcctional
+;                  that produces Blank FITS files for all selected dates.
+;                - Nov-17-2017 - Version 3.0. Accurate computation of
+;                  sun-fov-edges in P.O.S. (v2.0 had an approximation),
+;                  also corrected computation of CRPIX1.
+;
 ;;
 
 pro wispr_tool,loadk=loadk,correction=correction,SciOrbBrief=SciOrbBrief,ExtendedOrbits=ExtendedOrbits,FullList=FullList,ShortList=ShortList,CreateFITS=CreateFITS,Outdir=Outdir,basedir=basedir
 
 common constants,c,rsun,au
-common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
+common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
+                   ;Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,
 common output,listtype
 common indexes,i,j
 common SynthFITS,hdr_Inner_0,hdr_Outer_0,img_Inner_0,img_Outer_0,datadir,epoch,et
@@ -157,7 +163,8 @@ end
 pro ephemeris_wispr,epoch=epoch,correction=correction,loadk=loadk,SciOrbNum=SciOrbNumb,FullList=FullList,ShortList=ShortList
 
 common constants,c,rsun,au
-common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
+common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
+                   ;Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,
 common output,listtype
 common orbitnum,SciOrbNum
 
@@ -198,8 +205,10 @@ end
 pro get_SPP_ephemeris,epoch=epoch,et=et,abcorr=abcorr,printout=printout
 
 common constants,c,rsun,au
-common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
-      ;; Define parameters for a position lookup:
+common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
+                   ;Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,
+
+    ;; Define parameters for a position lookup:
      ; Return the position vector of SPP as seen from SUN in the J2000 at the EPOCH
       observer = 'SUN'
       frame    = 'J2000'
@@ -319,60 +328,57 @@ skip_earth:
       cspice_getfov, SPP_WISPR_OUTER_NAIF_ID, room2, shape2, frame2, bsight2, bounds2
       skip:
 
-      wispr_inner_Z_angle = 32.2 * !dtor ; rad
-      wispr_outer_Z_angle = 77.0 * !dtor ; rad
-      
-      D_SunCenter_inner_Center = dist_SUN_SPP * sin(wispr_inner_Z_angle) ; m
-      D_SunCenter_outer_Center = dist_SUN_SPP * sin(wispr_outer_Z_angle) ; m
-
+      ; WISPRI/O swing (Z) and fov angles
+      wispr_inner_Z_angle   = 32.2 * !dtor ; rad
       wispr_inner_FOV_angle = 40.9 * !dtor ; rad
+
+      wispr_outer_Z_angle   = 77.0 * !dtor ; rad
       wispr_outer_FOV_angle = 59.2 * !dtor ; rad
 
+      ; WISPRI/O angles for FOV East edge (E) and FOV West edge (W)
+      wispr_inner_E_angle = wispr_inner_Z_angle - wispr_inner_FOV_angle / 2. ; rad
+      wispr_inner_W_angle = wispr_inner_Z_angle + wispr_inner_FOV_angle / 2. ; rad
+
+      wispr_outer_E_angle = wispr_outer_Z_angle - wispr_outer_FOV_angle / 2. ; rad
+      wispr_outer_W_angle = wispr_outer_Z_angle + wispr_outer_FOV_angle / 2. ; rad
+
+      ; PLANE-OF-SKY distance to the Sun Center of East, Center and West each FOV.
+      D_SunCenter_inner_Center   = dist_SUN_SPP * sin(wispr_inner_Z_angle) ; m
+      D_SunCenter_inner_EastEdge = dist_SUN_SPP * sin(wispr_inner_E_angle) ; m
+      D_SunCenter_inner_WestEdge = dist_SUN_SPP * sin(wispr_inner_W_angle) ; m
+
+      D_SunCenter_outer_Center   = dist_SUN_SPP * sin(wispr_outer_Z_angle) ; m
+      D_SunCenter_outer_EastEdge = dist_SUN_SPP * sin(wispr_outer_E_angle) ; m
+      D_SunCenter_outer_WestEdge = dist_SUN_SPP * sin(wispr_outer_W_angle) ; m
+
+;-----------This was wrong----------------------------------------------------------------------
+goto,skip_wrong
       alpha_inner = wispr_inner_Z_angle
        beta_inner = alpha_inner - wispr_inner_FOV_angle / 2.
       gamma_inner = !pi/2.      + wispr_inner_FOV_angle / 2.
-      D_SunCenter_inner_EastEdge = dist_SUN_SPP * sin(beta_inner) / sin(gamma_inner)         ;m
-      D_SunCenter_inner_WestEdge = 2.* D_SunCenter_inner_Center - D_SunCenter_inner_EastEdge ;m
+      D_SunCenter_inner_EastEdge = dist_SUN_SPP * sin(beta_inner) / sin(gamma_inner)         ; m
+      D_SunCenter_inner_WestEdge = 2.* D_SunCenter_inner_Center - D_SunCenter_inner_EastEdge ; m
 
       alpha_outer = wispr_outer_Z_angle
        beta_outer = alpha_outer - wispr_outer_FOV_angle / 2.
       gamma_outer = !pi/2.      + wispr_outer_FOV_angle / 2.
-      D_SunCenter_outer_EastEdge = dist_SUN_SPP * sin(beta_outer) / sin(gamma_outer)         ;m
-      D_SunCenter_outer_WestEdge = 2.* D_SunCenter_outer_Center - D_SunCenter_outer_EastEdge ;m
-
+      D_SunCenter_outer_EastEdge = dist_SUN_SPP * sin(beta_outer) / sin(gamma_outer)         ; m
+      D_SunCenter_outer_WestEdge = 2.* D_SunCenter_outer_Center - D_SunCenter_outer_EastEdge ; m
+skip_wrong:
+;---------End of what was wrong-----------------------------------------------------------------
+      
 ; FOVs width and height in Pixels:
   FOVW_px = 2048.
   FOVH_px = 1920.
   FOVH_px = 2048. ; for project v1.0 make FOV square
   
-; FOVs widths in Rsun:
-  FOVW_inner_rsun = (D_SunCenter_inner_WestEdge-D_SunCenter_inner_EastEdge)/rsun
-  FOVW_outer_rsun = (D_SunCenter_outer_WestEdge-D_SunCenter_outer_EastEdge)/rsun
-
 ; Pixel size in arcsec:
   px_inner_arcsec = 3600.* (wispr_inner_FOV_angle/!dtor) / FOVW_px
   px_outer_arcsec = 3600.* (wispr_outer_FOV_angle/!dtor) / FOVW_px
 
-; Pixel size in Rsun:  
-  px_inner_rsun = FOVW_inner_rsun / FOVW_px
-  px_outer_rsun = FOVW_outer_rsun / FOVW_px
-
-; Distances SunCenter-FOVcenter in pixels:
-  D_SunCenter_inner_Center_px = D_SunCenter_inner_Center / rsun / px_inner_rsun
-  D_SunCenter_outer_Center_px = D_SunCenter_outer_Center / rsun / px_outer_rsun
-
-; Distances SunCenter-FOVEastEdge in pixels:
-  D_SunCenter_inner_EastEdge_px = D_SunCenter_inner_EastEdge /rsun / px_inner_rsun
-  D_SunCenter_outer_EastEdge_px = D_SunCenter_outer_EastEdge /rsun / px_outer_rsun
-
-; Distances SunCenter-FOVEastEdge in pixels:
-  D_SunCenter_inner_WestEdge_px = D_SunCenter_inner_WestEdge /rsun / px_inner_rsun
-  D_SunCenter_outer_WestEdge_px = D_SunCenter_outer_WestEdge /rsun / px_outer_rsun
-
-; Pixel location of SunCenter in each FOV, assuming (ix,iy)=(0,0) in
-; lower-left corner of each FOV.
-  Pos_SunCenter_px_inner = [- D_SunCenter_inner_EastEdge_px , FOVH_px / 2 + 1./2]
-  Pos_SunCenter_px_outer = [- D_SunCenter_outer_EastEdge_px , FOVH_px / 2 + 1./2]
+; Pixel location of SunCenter in each FOV, assuming (ix,iy)=(0,0) in lower-left corner of each FOV.
+  Pos_SunCenter_px_inner = [FOVW_px / 2. + 1./2 - (wispr_inner_Z_angle/wispr_inner_FOV_angle) * FOVW_px , FOVH_px / 2 + 1./2]
+  Pos_SunCenter_px_outer = [FOVW_px / 2. + 1./2 - (wispr_outer_Z_angle/wispr_outer_FOV_angle) * FOVW_px , FOVH_px / 2 + 1./2]
 
 if keyword_set(printout) then begin
       print,'--------------------------------------------------------------------'
@@ -381,13 +387,6 @@ if keyword_set(printout) then begin
       print,'                       East-Edge       Center          West-Edge'
       print,'WISPR INNER FOV:',[D_SunCenter_inner_EastEdge,D_SunCenter_inner_Center,D_SunCenter_inner_WestEdge]/rsun
       print,'WISPR OUTER FOV:',[D_SunCenter_outer_EastEdge,D_SunCenter_outer_Center,D_SunCenter_outer_WestEdge]/rsun
-      print,'--------------------------------------------------------------------'      
-      print
-      print,'Distance [pixels] between Sun center and:'
-      print,'--------------------------------------------------------------------'
-      print,'                       East-Edge       Center          West-Edge'
-      print,'WISPR INNER FOV:',[D_SunCenter_inner_EastEdge_px,D_SunCenter_inner_Center_px,D_SunCenter_inner_WestEdge_px]
-      print,'WISPR OUTER FOV:',[D_SunCenter_outer_EastEdge_px,D_SunCenter_outer_Center_px,D_SunCenter_outer_WestEdge_px]
       print
       print,'--------------------------------------------------------------------'
       print,'Coordinates of Sun Center in pixels in each FOV, taking (0,0) in the lower left edge of each FOV:'
@@ -397,8 +396,6 @@ endif
 
 Distances_SUN_FOV_inner_Rsun = [D_SunCenter_inner_EastEdge,D_SunCenter_inner_Center,D_SunCenter_inner_WestEdge]/rsun
 Distances_SUN_FOV_outer_Rsun = [D_SunCenter_outer_EastEdge,D_SunCenter_outer_Center,D_SunCenter_outer_WestEdge]/rsun
-Distances_SUN_FOV_inner_px   = [D_SunCenter_inner_EastEdge_px,D_SunCenter_inner_Center_px,D_SunCenter_inner_WestEdge_px]
-Distances_SUN_FOV_outer_px   = [D_SunCenter_outer_EastEdge_px,D_SunCenter_outer_Center_px,D_SunCenter_outer_WestEdge_px]
 
 return
 end
@@ -417,7 +414,8 @@ pro writedata,fileID=fileID,terminal=terminal,SciOrbNum=SciOrbNum,epocharray=epo
 common output,listtype
 common constants,c,rsun,au
 common indexes,i,j
-common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
+common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
+                   ;Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,
 
 if NOT keyword_set(terminal) then begin
 
@@ -426,9 +424,9 @@ if listtype eq 'full' then $
            sun_spp_vector_J2000/1.e3, dist_SUN_SPP/1.e3, dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
            long_start, lat_start,$
            Pos_SunCenter_px_inner, Pos_SunCenter_px_outer,$
-           Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,$
+;          Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,$
            Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,$
-           format='(1(I4),1(A22),1(E19.10),4(F14.2),2(F10.4),2(F10.2),10(F10.1),6(F10.4))'
+           format='(1(I4),1(A22),1(E19.10),4(F14.2),2(F10.4),2(F10.2),4(F10.1),6(F10.4))'
 if listtype eq 'short' then $  
   printf,fileID,SciOrbNum[i],epocharray[i,j],$
            dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
@@ -443,9 +441,9 @@ if listtype eq 'full' then $
            sun_spp_vector_J2000/1.e3, dist_SUN_SPP/1.e3, dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
            long_start, lat_start,$
            Pos_SunCenter_px_inner, Pos_SunCenter_px_outer,$
-           Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,$
+;          Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,$
            Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,$
-           format='(1(I4),1(A22),1(E19.10),4(F14.2),2(F10.4),2(F10.2),10(F10.1),6(F10.4))'
+           format='(1(I4),1(A22),1(E19.10),4(F14.2),2(F10.4),2(F10.2),4(F10.1),6(F10.4))'
 if listtype eq 'short' then $  
   print   ,SciOrbNum,epocharray,$
            dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
@@ -461,8 +459,8 @@ pro writekeys,fileID=fileID,terminal=terminal
 common output,listtype
 
 if listtype eq 'full'  then begin  
-string1=' Orb     DATE       TIME           ET            SObsJ2000x    SObsJ2000y    SObsJ2000z        D-SObs    D-SObs    D-SObs       LON       LAT    CtrI_x    CtrI_y    CtrO_x    CtrO_y      S-IE      S-IC      S-IW      S-OE      S-OC      S-OW      S-IE      S-IC      S-IW      S-OE      S-OC      S-OW'
-string2='   #                                                   [km]          [km]          [km]          [km]    [Rsun]      [AU]     [deg]     [deg]      [px]      [px]      [px]      [px]      [px]      [px]      [px]      [px]      [px]      [px]    [Rsun]    [Rsun]    [Rsun]    [Rsun]    [Rsun]    [Rsun]' 
+string1=' Orb     DATE       TIME           ET            SObsJ2000x    SObsJ2000y    SObsJ2000z        D-SObs    D-SObs    D-SObs       LON       LAT    CtrI_x    CtrI_y    CtrO_x    CtrO_y      S-IE      S-IC      S-IW      S-OE      S-OC      S-OW'
+string2='   #                                                   [km]          [km]          [km]          [km]    [Rsun]      [AU]     [deg]     [deg]      [px]      [px]      [px]      [px]    [Rsun]    [Rsun]    [Rsun]    [Rsun]    [Rsun]    [Rsun]' 
 endif else begin
 string1=' Orb     DATE       TIME      D-SObs    D-SObs       LON       LAT      S-IE      S-IW      S-OE      S-OW'
 string2='   #                          [Rsun]      [AU]     [deg]     [deg]    [Rsun]    [Rsun]    [Rsun]    [Rsun]' 
@@ -491,7 +489,7 @@ end
 pro dash_line,fileID=fileID,terminal=terminal
   common output,listtype
 if listtype eq 'full'  then $
-string1='-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+string1='--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
 if listtype eq 'short' then $
 string1='----------------------------------------------------------------------------------------------------------'
 if not keyword_set(terminal) then printf,fileID,string1
@@ -502,7 +500,7 @@ end
 pro dot_line,fileID=fileID
 common output,listtype
 if listtype eq 'full'  then $
-printf,fileID,'  ...........................................................................................................................................................................................................................................................................................................'
+printf,fileID,'  ................................................................................................................................................................................................................................................'
 if listtype eq 'short' then $
 printf,fileID,'  .......................................................................................................'
 return
@@ -524,7 +522,8 @@ END
 
 pro Create_FITS
 common constants,c,rsun,au
-common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun, Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
+common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
+                   ;Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,
 common SynthFITS,hdr_Inner_0,hdr_Outer_0,img_Inner_0,img_Outer_0,datadir,epoch,et
 
 ; Create HDR equal to "TestImages" Header

@@ -2,7 +2,7 @@
 ;
 ; IDL tool to generate WISPR orbital ephemeris with relevant parameters
 ; for tomography. It also generates synthetic headers for the
-; corresponding fits files.
+; corresponding fits files. by A.M.Vasquez (albert@iafe.uba.ar)
 ;
 ; INPUTS:  w.i.p.
 ;
@@ -12,22 +12,25 @@
 ;
 ; HISTORY
 ; A.M. Vasquez   - Oct-15-2017 - Version 1.0
-;                - Oct-31-2017 - Version 2.0, first one fully funcctional
-;                  that produces Blank FITS files for all selected dates.
+;                - Oct-31-2017 - Version 2.0, first fully functional version,
+;                  that produces Blank FITS files for selected dates.
 ;                - Nov-17-2017 - Version 3.0. Accurate computation of
-;                  sun-fov-edges in P.O.S. (v2.0 had an approximation),
+;                  sun-fov-size in P.O.S. (v2.0 has an approximation),
 ;                  also corrected computation of CRPIX1.
-;
+;                - Nov-19-2017 - Version 3.1. Added /squareFOV so that
+;                  square FOVs are now optional. Adapted needed code
+;                  to properly function with both square and non-square cases.
 ;;
 
-pro wispr_tool,loadk=loadk,correction=correction,SciOrbBrief=SciOrbBrief,ExtendedOrbits=ExtendedOrbits,FullList=FullList,ShortList=ShortList,CreateFITS=CreateFITS,Outdir=Outdir,basedir=basedir
+pro wispr_tool,loadk=loadk,correction=correction,SciOrbBrief=SciOrbBrief,ExtendedOrbits=ExtendedOrbits,FullList=FullList,ShortList=ShortList,CreateFITS=CreateFITS,Outdir=Outdir,basedir=basedir,SquareFOV=SquareFOV
 
 common constants,c,rsun,au
 common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
-                   ;Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,
+
 common output,listtype
 common indexes,i,j
 common SynthFITS,hdr_Inner_0,hdr_Outer_0,img_Inner_0,img_Outer_0,datadir,epoch,et
+common FOVs,FOVW_inner_px,FOVH_inner_px,FOVW_outer_px,FOVH_outer_px
 
 if keyword_set(FullList)  then begin
   listtype = 'full'
@@ -55,29 +58,45 @@ if NOT keyword_set(Outdir) then Outdir='../TestImage/'
       cspice_furnsh, 'wispr_albert.tm'
   endif
 
-  ; Load sample FITS if CreateFITS
-  if keyword_set(CreateFITS) then begin
-     if not keyword_set(basedir) then basedir='/data1/'
-     mreadfits,basedir+'work/SPP/TestImage/WISPR-EM3_FM1_Inner.fits',hdr_Inner_0,img_Inner_0
-     mreadfits,basedir+'work/SPP/TestImage/WISPR-EM3_FM1_Outer.fits',hdr_Outer_0,img_Outer_0
-    ;In project v1.0 make FOVs square for simplicity in tom codes:
-     hdr_Inner_0.NAXIS2 = hdr_Inner_0.NAXIS1
-     hdr_Outer_0.NAXIS2 = hdr_Outer_0.NAXIS1
-    ;Create SQUARED float images with the Test image wiithin it:
+ ; Handle basedir and datadir
+  if not keyword_set(basedir) then basedir='/data1/'
+  datadir=Outdir
+ 
+ ;Load sample FITS
+  mreadfits,basedir+'work/SPP/TestImage/WISPR-EM3_FM1_Inner.fits',hdr_Inner_0,img_Inner_0
+  mreadfits,basedir+'work/SPP/TestImage/WISPR-EM3_FM1_Outer.fits',hdr_Outer_0,img_Outer_0
+   
+ ;Create SQUARE images with the Test image located in its center,
+ ;leaving all other pixels set to zero. Correct NAXIS2 in headers accordingly.
+  if keyword_set(squareFOV) then begin
+    ;Save original NAXIS2 in new variables
+     naxis2_inner_original = hdr_Inner_0.NAXIS2
+     naxis2_outer_original = hdr_Inner_0.NAXIS2
+    ;Correct NAXIS2 in headers
+     hdr_Inner_0.NAXIS2    = hdr_Inner_0.NAXIS1
+     hdr_Outer_0.NAXIS2    = hdr_Outer_0.NAXIS1
+    ;Create empty square images
      tmp_Inner = fltarr(hdr_Inner_0.NAXIS1,hdr_Inner_0.NAXIS2)
      tmp_Outer = fltarr(hdr_Outer_0.NAXIS1,hdr_Outer_0.NAXIS2)
-     naxis2_original = 1920
-     naxis2          = 2048
-     index0 = (naxis2-naxis2_original)/2
-     tmp_Inner(*,index0:index0+naxis2_original-1) = img_Inner_0
-     tmp_Outer(*,index0:index0+naxis2_original-1) = img_Outer_0
+    ;Fit non-square image into center of square image.
+     index0_inner = (hdr_Inner_0.NAXIS2-naxis2_inner_original)/2
+     index0_outer = (hdr_Outer_0.NAXIS2-naxis2_outer_original)/2
+     tmp_Inner(*,index0_inner:index0_inner+naxis2_inner_original-1) = img_Inner_0
+     tmp_Outer(*,index0_outer:index0_outer+naxis2_outer_original-1) = img_Outer_0
      img_Inner_0 = tmp_Inner
      img_Outer_0 = tmp_Outer
-     p = where(img_Inner_0 eq 0.) & if p[0] ne -1 then img_Inner_0(p)=-1.
-     p = where(img_Outer_0 eq 0.) & if p[0] ne -1 then img_Outer_0(p)=-1.
-     datadir=Outdir
   endif
   
+ ;Set to -1. any pixel with value zero
+  p = where(img_Inner_0 eq 0.) & if p[0] ne -1 then img_Inner_0(p)=-1.
+  p = where(img_Outer_0 eq 0.) & if p[0] ne -1 then img_Outer_0(p)=-1.
+ 
+ ;Store FOVs width and height [px] in convenient variables:
+  FOVW_inner_px = hdr_Inner_0.NAXIS1
+  FOVH_inner_px = hdr_Inner_0.NAXIS2
+  FOVW_outer_px = hdr_Outer_0.NAXIS1
+  FOVH_outer_px = hdr_Outer_0.NAXIS2
+
   ; set correction parameter
   if not keyword_set(correction) then abcorr = 'NONE'
 
@@ -164,7 +183,6 @@ pro ephemeris_wispr,epoch=epoch,correction=correction,loadk=loadk,SciOrbNum=SciO
 
 common constants,c,rsun,au
 common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
-                   ;Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,
 common output,listtype
 common orbitnum,SciOrbNum
 
@@ -206,7 +224,7 @@ pro get_SPP_ephemeris,epoch=epoch,et=et,abcorr=abcorr,printout=printout
 
 common constants,c,rsun,au
 common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
-                   ;Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,
+common FOVs,FOVW_inner_px,FOVH_inner_px,FOVW_outer_px,FOVH_outer_px
 
     ;; Define parameters for a position lookup:
      ; Return the position vector of SPP as seen from SUN in the J2000 at the EPOCH
@@ -351,34 +369,13 @@ skip_earth:
       D_SunCenter_outer_EastEdge = dist_SUN_SPP * sin(wispr_outer_E_angle) ; m
       D_SunCenter_outer_WestEdge = dist_SUN_SPP * sin(wispr_outer_W_angle) ; m
 
-;-----------This was wrong----------------------------------------------------------------------
-goto,skip_wrong
-      alpha_inner = wispr_inner_Z_angle
-       beta_inner = alpha_inner - wispr_inner_FOV_angle / 2.
-      gamma_inner = !pi/2.      + wispr_inner_FOV_angle / 2.
-      D_SunCenter_inner_EastEdge = dist_SUN_SPP * sin(beta_inner) / sin(gamma_inner)         ; m
-      D_SunCenter_inner_WestEdge = 2.* D_SunCenter_inner_Center - D_SunCenter_inner_EastEdge ; m
-
-      alpha_outer = wispr_outer_Z_angle
-       beta_outer = alpha_outer - wispr_outer_FOV_angle / 2.
-      gamma_outer = !pi/2.      + wispr_outer_FOV_angle / 2.
-      D_SunCenter_outer_EastEdge = dist_SUN_SPP * sin(beta_outer) / sin(gamma_outer)         ; m
-      D_SunCenter_outer_WestEdge = 2.* D_SunCenter_outer_Center - D_SunCenter_outer_EastEdge ; m
-skip_wrong:
-;---------End of what was wrong-----------------------------------------------------------------
-      
-; FOVs width and height in Pixels:
-  FOVW_px = 2048.
-  FOVH_px = 1920.
-  FOVH_px = 2048. ; for project v1.0 make FOV square
-  
 ; Pixel size in arcsec:
-  px_inner_arcsec = 3600.* (wispr_inner_FOV_angle/!dtor) / FOVW_px
-  px_outer_arcsec = 3600.* (wispr_outer_FOV_angle/!dtor) / FOVW_px
+  px_inner_arcsec = 3600.* (wispr_inner_FOV_angle/!dtor) / FOVW_inner_px
+  px_outer_arcsec = 3600.* (wispr_outer_FOV_angle/!dtor) / FOVW_outer_px
 
 ; Pixel location of SunCenter in each FOV, assuming (ix,iy)=(0,0) in lower-left corner of each FOV.
-  Pos_SunCenter_px_inner = [FOVW_px / 2. + 1./2 - (wispr_inner_Z_angle/wispr_inner_FOV_angle) * FOVW_px , FOVH_px / 2 + 1./2]
-  Pos_SunCenter_px_outer = [FOVW_px / 2. + 1./2 - (wispr_outer_Z_angle/wispr_outer_FOV_angle) * FOVW_px , FOVH_px / 2 + 1./2]
+  Pos_SunCenter_px_inner = [FOVW_inner_px / 2. + 1./2 - (wispr_inner_Z_angle/wispr_inner_FOV_angle) * FOVW_inner_px , FOVH_inner_px / 2 + 1./2]
+  Pos_SunCenter_px_outer = [FOVW_outer_px / 2. + 1./2 - (wispr_outer_Z_angle/wispr_outer_FOV_angle) * FOVW_outer_px , FOVH_outer_px / 2 + 1./2]
 
 if keyword_set(printout) then begin
       print,'--------------------------------------------------------------------'
@@ -415,7 +412,6 @@ common output,listtype
 common constants,c,rsun,au
 common indexes,i,j
 common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
-                   ;Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,
 
 if NOT keyword_set(terminal) then begin
 
@@ -424,7 +420,6 @@ if listtype eq 'full' then $
            sun_spp_vector_J2000/1.e3, dist_SUN_SPP/1.e3, dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
            long_start, lat_start,$
            Pos_SunCenter_px_inner, Pos_SunCenter_px_outer,$
-;          Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,$
            Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,$
            format='(1(I4),1(A22),1(E19.10),4(F14.2),2(F10.4),2(F10.2),4(F10.1),6(F10.4))'
 if listtype eq 'short' then $  
@@ -441,7 +436,6 @@ if listtype eq 'full' then $
            sun_spp_vector_J2000/1.e3, dist_SUN_SPP/1.e3, dist_SUN_SPP/rsun, dist_SUN_SPP/au,$
            long_start, lat_start,$
            Pos_SunCenter_px_inner, Pos_SunCenter_px_outer,$
-;          Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,$
            Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,$
            format='(1(I4),1(A22),1(E19.10),4(F14.2),2(F10.4),2(F10.2),4(F10.1),6(F10.4))'
 if listtype eq 'short' then $  
@@ -523,7 +517,6 @@ END
 pro Create_FITS
 common constants,c,rsun,au
 common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
-                   ;Distances_SUN_FOV_inner_px, Distances_SUN_FOV_outer_px,
 common SynthFITS,hdr_Inner_0,hdr_Outer_0,img_Inner_0,img_Outer_0,datadir,epoch,et
 
 ; Create HDR equal to "TestImages" Header

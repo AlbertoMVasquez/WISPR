@@ -4,11 +4,11 @@
 ; for tomography. It also generates synthetic headers for the
 ; corresponding fits files. by A.M.Vasquez (albert@iafe.uba.ar)
 ;
-; INPUTS:  w.i.p.
+; INPUTS:  work in progress.
 ;
-; OUTPUTS: w.i.p.
+; OUTPUTS: work in progress.
 ;  
-; CALL SEQUENCE: wispr_tool, /loadk
+; CALL SEQUENCE: wispr_tool,[/option1,/option2,....]
 ;
 ; HISTORY
 ; A.M. Vasquez   - Oct-15-2017 - Version 1.0
@@ -20,36 +20,31 @@
 ;                - Nov-19-2017 - Version 3.1. Added /squareFOV so that
 ;                  square FOVs are now optional. Adapted needed code
 ;                  to properly function with both square and non-square cases.
+;                - Dec-11-2017 - Version 3.2 Added /bin option to
+;                  generate images of smaller size, rebined by "bf",
+;                  default value is bf=4.
+;
 ;;
 
-pro wispr_tool,loadk=loadk,correction=correction,SciOrbBrief=SciOrbBrief,ExtendedOrbits=ExtendedOrbits,FullList=FullList,ShortList=ShortList,CreateFITS=CreateFITS,Outdir=Outdir,basedir=basedir,SquareFOV=SquareFOV
+pro wispr_tool,loadk=loadk,correction=correction,SciOrbBrief=SciOrbBrief,ExtendedOrbits=ExtendedOrbits,FullList=FullList,ShortList=ShortList,CreateFITS=CreateFITS,Outdir=Outdir,basedir=basedir,SquareFOV=SquareFOV,bin=bin,bf=bf
 
 common constants,c,rsun,au
 common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
-
 common output,listtype
 common indexes,i,j
 common SynthFITS,hdr_Inner_0,hdr_Outer_0,img_Inner_0,img_Outer_0,datadir,epoch,et
 common FOVs,FOVW_inner_px,FOVH_inner_px,FOVW_outer_px,FOVH_outer_px
+common suffixes,suffix_binfac,suffix_square
 
-if keyword_set(FullList)  then begin
-  listtype = 'full'
-  filename = 'table_spp_orbits_full.dat'
-endif
+  if NOT keyword_set(Outdir) then Outdir='../TestImage/'
+  ;Handle basedir and datadir
+  if not keyword_set(basedir) then basedir='/data1/'
+  datadir=Outdir
+  
+  ;load useful constants
+   loadconstants
 
-if keyword_set(ShortList) then begin
-  listtype = 'short'
-  filename = 'table_spp_orbits_short.dat'
-endif
-
-filename2  = 'table_relative_difference_rad_lon_lat.dat'
-
-if NOT keyword_set(Outdir) then Outdir='../TestImage/'
-
-;load useful constants
- loadconstants
-
-; LOAD KERNELS
+  ;LOAD KERNELS
   if keyword_set(loadk) then begin
       ;; Load kernels to initialize program.
       ;; Update by W. Thompson March 2017 to leverage new sunspice.
@@ -58,17 +53,28 @@ if NOT keyword_set(Outdir) then Outdir='../TestImage/'
       cspice_furnsh, 'wispr_albert.tm'
   endif
 
- ; Handle basedir and datadir
-  if not keyword_set(basedir) then basedir='/data1/'
-  datadir=Outdir
- 
  ;Load sample FITS
   mreadfits,basedir+'work/SPP/TestImage/WISPR-EM3_FM1_Inner.fits',hdr_Inner_0,img_Inner_0
   mreadfits,basedir+'work/SPP/TestImage/WISPR-EM3_FM1_Outer.fits',hdr_Outer_0,img_Outer_0
-   
+
+  suffix_binfac = ''
+ ;Rebin by binfac if requested
+  if keyword_set(bin) then begin
+     if not keyword_set(bf) then bf=4
+     suffix_binfac = '_binfac'+strmid(bf,7,1)
+     img_Inner_0 = rebin(img_Inner_0,hdr_Inner_0.Naxis1/bf,hdr_Inner_0.Naxis2/bf)
+     img_Outer_0 = rebin(img_Outer_0,hdr_Outer_0.Naxis1/bf,hdr_Outer_0.Naxis2/bf)
+     hdr_Inner_0.Naxis1=hdr_Inner_0.Naxis1/bf
+     hdr_Inner_0.Naxis2=hdr_Inner_0.Naxis2/bf
+     hdr_Outer_0.Naxis1=hdr_Outer_0.Naxis1/bf
+     hdr_Outer_0.Naxis2=hdr_Outer_0.Naxis2/bf
+  endif
+
+  suffix_square=''
  ;Create SQUARE images with the Test image located in its center,
  ;leaving all other pixels set to zero. Correct NAXIS2 in headers accordingly.
   if keyword_set(squareFOV) then begin
+     suffix_square='_squareFOV'
     ;Save original NAXIS2 in new variables
      naxis2_inner_original = hdr_Inner_0.NAXIS2
      naxis2_outer_original = hdr_Inner_0.NAXIS2
@@ -86,7 +92,19 @@ if NOT keyword_set(Outdir) then Outdir='../TestImage/'
      img_Inner_0 = tmp_Inner
      img_Outer_0 = tmp_Outer
   endif
-  
+
+  if keyword_set(FullList)  then begin
+  listtype = 'full'
+  filename = 'table_spp_orbits_full'+suffix_square+suffix_binfac+'.dat'
+  endif
+
+  if keyword_set(ShortList) then begin
+  listtype = 'short'
+  filename = 'table_spp_orbits_short'+suffix_square+suffix_binfac+'.dat'
+  endif
+
+  filename2  = 'table_relative_difference_rad_lon_lat'+suffix_square+suffix_binfac+'.dat'
+
  ;Set to -1. any pixel with value zero
   p = where(img_Inner_0 eq 0.) & if p[0] ne -1 then img_Inner_0(p)=-1.
   p = where(img_Outer_0 eq 0.) & if p[0] ne -1 then img_Outer_0(p)=-1.
@@ -369,13 +387,13 @@ skip_earth:
       D_SunCenter_outer_EastEdge = dist_SUN_SPP * sin(wispr_outer_E_angle) ; m
       D_SunCenter_outer_WestEdge = dist_SUN_SPP * sin(wispr_outer_W_angle) ; m
 
-; Pixel size in arcsec:
-  px_inner_arcsec = 3600.* (wispr_inner_FOV_angle/!dtor) / FOVW_inner_px
-  px_outer_arcsec = 3600.* (wispr_outer_FOV_angle/!dtor) / FOVW_outer_px
+      ; Pixel size in arcsec:
+      px_inner_arcsec = 3600.* (wispr_inner_FOV_angle/!dtor) / FOVW_inner_px
+      px_outer_arcsec = 3600.* (wispr_outer_FOV_angle/!dtor) / FOVW_outer_px
 
-; Pixel location of SunCenter in each FOV, assuming (ix,iy)=(0,0) in lower-left corner of each FOV.
-  Pos_SunCenter_px_inner = [FOVW_inner_px / 2. + 1./2 - (wispr_inner_Z_angle/wispr_inner_FOV_angle) * FOVW_inner_px , FOVH_inner_px / 2 + 1./2]
-  Pos_SunCenter_px_outer = [FOVW_outer_px / 2. + 1./2 - (wispr_outer_Z_angle/wispr_outer_FOV_angle) * FOVW_outer_px , FOVH_outer_px / 2 + 1./2]
+      ; Pixel location of SunCenter in each FOV, assuming (ix,iy)=(0,0) in lower-left corner of each FOV.
+      Pos_SunCenter_px_inner = [FOVW_inner_px / 2. + 1./2 - (wispr_inner_Z_angle/wispr_inner_FOV_angle) * FOVW_inner_px , FOVH_inner_px / 2 + 1./2]
+      Pos_SunCenter_px_outer = [FOVW_outer_px / 2. + 1./2 - (wispr_outer_Z_angle/wispr_outer_FOV_angle) * FOVW_outer_px , FOVH_outer_px / 2 + 1./2]
 
 if keyword_set(printout) then begin
       print,'--------------------------------------------------------------------'
@@ -518,6 +536,7 @@ pro Create_FITS
 common constants,c,rsun,au
 common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
 common SynthFITS,hdr_Inner_0,hdr_Outer_0,img_Inner_0,img_Outer_0,datadir,epoch,et
+common suffixes,suffix_binfac,suffix_square
 
 ; Create HDR equal to "TestImages" Header
 hdr_Inner = hdr_Inner_0
@@ -528,8 +547,8 @@ hdr_Inner.DATE_OBS =  strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
 hdr_Outer.DATE_OBS =  strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
 
 ; Create filenames
-filename_Inner = 'WISPR_I_'+hdr_Inner.DATE_OBS+'_Blank.fts'
-filename_Outer = 'WISPR_O_'+hdr_Inner.DATE_OBS+'_Blank.fts'
+filename_Inner = 'WISPR_I_'+hdr_Inner.DATE_OBS+suffix_square+suffix_binfac+'_Blank.fts'
+filename_Outer = 'WISPR_O_'+hdr_Inner.DATE_OBS+suffix_square+suffix_binfac+'_Blank.fts'
 
 ; Update .FILENAME
 hdr_Inner.FILENAME = filename_Inner

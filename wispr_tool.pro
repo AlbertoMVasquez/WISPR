@@ -618,3 +618,37 @@ mwritefits,hdr_Outer,img_Outer_0,outfile=datadir+filename_Outer
 
 return
 end
+
+pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir
+
+  if not keyword_set(input_dir) then input_dir='/data1/work/SPP/SORBET_VIZZER_WISPR_RevA/'
+
+  readcol,input_dir+table_file,orb,date,time,Dsun_Rsun,Dsun_AU,Lon,Lat,HIE,HIW,HOE,HOW,$
+          format='U,A,A,F,F,F,F,F,F,F,F',skipline=4,/quick
+
+  Ndat = (size(Lon))(1)
+
+  p = where(lon gt 360.)
+  if p(0) ne -1 then stop
+
+  if Orb[0] lt 10 then Orb_string = '0'+strmid(string(Orb[0]),7,1)
+  if Orb[0] ge 10 then Orb_string =     strmid(string(Orb[0]),6,2)
+  ps1,input_dir+table_file+'_coverage_plot.eps',0
+  plot,lon,HOW,xtitle='Sub-PSP Longitude [deg]',ytitle='Heliocentric Height [R!DSUN!N]',$
+       title='FOVs Orbit-'+Orb_string+': I (blue), O (red).',$
+       xr=[0,360],xstyle=1,$
+       font=1,/nodata
+  loadct,12
+  blue=100
+  red =200
+  thick=4
+  for i=1,Ndat-1 do begin
+     oplot,Lon[i]*[1,1],[HIE[i],HIW[i]],th=thick,color=blue,psym=4
+     oplot,Lon[i]*[1,1],[HIE[i],HIW[i]],th=thick,color=blue
+     oplot,Lon[i]*[1,1],[HOE[i],HOW[i]],th=thick,color=red ,psym=5
+     oplot,Lon[i]*[1,1],[HOE[i],HOW[i]],th=thick,color=red
+  endfor
+  loadct,0
+  ps2
+  stop
+end

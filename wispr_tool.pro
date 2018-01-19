@@ -26,7 +26,7 @@
 ;
 ;;
 
-pro wispr_tool,loadk=loadk,correction=correction,SciOrbBrief=SciOrbBrief,ExtendedOrbits=ExtendedOrbits,FullList=FullList,ShortList=ShortList,CreateFITS=CreateFITS,Outdir=Outdir,basedir=basedir,SquareFOV=SquareFOV,bin=bin,bf=bf
+pro wispr_tool,loadk=loadk,correction=correction,SciOrbBrief=SciOrbBrief,ExtendedOrbits=ExtendedOrbits,FullList=FullList,ShortList=ShortList,CreateFITS=CreateFITS,Outdir=Outdir,basedir=basedir,SquareFOV=SquareFOV,bin=bin,bf=bf,CircularOrbits=CircularOrbits
 
 common constants,c,rsun,au
 common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
@@ -35,6 +35,7 @@ common indexes,i,j
 common SynthFITS,hdr_Inner_0,hdr_Outer_0,img_Inner_0,img_Outer_0,datadir,epoch,et
 common FOVs,FOVW_inner_px,FOVH_inner_px,FOVW_outer_px,FOVH_outer_px
 common suffixes,suffix_binfac,suffix_square
+common experiment,CircularOrbit_flag,CircularOrbit_Radius,CircularOrbit_Carlon,CircularOrbit_Carlat,experiment_suffix
 
   if NOT keyword_set(Outdir) then Outdir='../TestImage/'
   ;Handle basedir and datadir
@@ -93,17 +94,24 @@ common suffixes,suffix_binfac,suffix_square
      img_Outer_0 = tmp_Outer
   endif
 
+  CircularOrbit_flag = 0
+  experiment_suffix   = ''
+  if keyword_set(CircularOrbits) then begin
+     experiment_suffix='.CircularOrbits_OffEquator'
+     CircularOrbit_flag = 1
+  endif
+  
   if keyword_set(FullList)  then begin
   listtype = 'full'
-  filename = 'table_spp_orbits_full'+suffix_square+suffix_binfac+'.dat'
+  filename = 'table_spp_orbits_full'+suffix_square+suffix_binfac+experiment_suffix+'.dat'
   endif
 
   if keyword_set(ShortList) then begin
   listtype = 'short'
-  filename = 'table_spp_orbits_short'+suffix_square+suffix_binfac+'.dat'
+  filename = 'table_spp_orbits_short'+suffix_square+suffix_binfac+experiment_suffix+'.dat'
   endif
 
-  filename2  = 'table_relative_difference_rad_lon_lat'+suffix_square+suffix_binfac+'.dat'
+  filename2  = 'table_relative_difference_rad_lon_lat'+suffix_square+suffix_binfac+experiment_suffix+'.dat'
 
  ;Set to -1. any pixel with value zero
   p = where(img_Inner_0 eq 0.) & if p[0] ne -1 then img_Inner_0(p)=-1.
@@ -141,7 +149,7 @@ if keyword_set(SciOrbBrief) then begin
   endfor
 endif
 
-if keyword_set(ExtendedOrbits) then begin
+if keyword_set(ExtendedOrbits) or keyword_set(CircularOrbits) then begin
    StartEpoch = ['2018-10-15  10:00:00','2022-05-12  10:00:00','2025-05-30  10:00:00']
    cspice_str2et, StartEpoch, StartET
    NumDays         = 30.                    ; days 
@@ -156,10 +164,18 @@ if keyword_set(ExtendedOrbits) then begin
        cspice_timout, reform(ETarray[i,*]), 'YYYY-MM-DD  HR:MN:SC', 22, EpochVector
        EpochArray[i,*] = EpochVector
    endfor
+   if CircularOrbit_flag eq 1 then begin
+                Radius = [10.,40.,80.]
+          delta_carlon = 360./Nepochs ; deg
+      amplitude_carlat = 3.           ; deg
+            ;latitudes = fltarr(Nepoch)    
+             latitudes = -amplitude_carlat + 2.*amplitude_carlat*findgen(Nepochs)/float(Nepochs-1) ; deg
+   endif
 endif
 
-  science_limit       = 0.25 ; AU
-  flag_science_region = 0 
+  science_limit       = 0.25      ; AU
+  if CircularOrbit_flag eq 1 then science_limit = 1.0 ; AU
+  flag_science_region = 0
 ; Make output table of ephemeris for the selected ETs
   openfile,1,filename
   openfile,2,filename2
@@ -167,10 +183,15 @@ endif
   count=1
   for i=0,Norbits-1 do begin
   writekeys,fileID=1
-  for j=0,Nepochs-1 do begin  
+  if CircularOrbit_flag eq 1 then CircularOrbit_Radius = Radius[i]
+  for j=0,Nepochs-1 do begin
   epoch = EpochArray[i,j]
      et = ETarray   [i,j]
-  get_SPP_ephemeris,epoch=epoch,et=et,abcorr=abcorr;,/printout
+  if CircularOrbit_flag eq 1 then begin
+     CircularOrbit_Carlon = j*delta_carlon
+     CircularOrbit_Carlat = latitudes[j]
+  endif
+  get_SPP_ephemeris,epoch=epoch,et=et,abcorr=abcorr ;,/printout
   print,'Done with date',count,' of',Norbits*Nepochs
   count=count+1
   if flag_science_region eq 0 AND dist_SUN_SPP/au le science_limit then begin
@@ -243,6 +264,8 @@ pro get_SPP_ephemeris,epoch=epoch,et=et,abcorr=abcorr,printout=printout
 common constants,c,rsun,au
 common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
 common FOVs,FOVW_inner_px,FOVH_inner_px,FOVW_outer_px,FOVH_outer_px
+common experiment,CircularOrbit_flag,CircularOrbit_Radius,CircularOrbit_Carlon,CircularOrbit_Carlat,experiment_suffix
+common sun_obs_unit_vector,sun_obs_unit_J2k,sun_obs_unit_HAE
 
     ;; Define parameters for a position lookup:
      ; Return the position vector of SPP as seen from SUN in the J2000 at the EPOCH
@@ -276,12 +299,23 @@ skip_earth:
       sun_spp_vector_HAE = get_sunspice_coord( date, spacecraft, system='HAE',/novelocity,/meters) ; m
       sun_spp_vector_HEE = get_sunspice_coord( date, spacecraft, system='HEE',/novelocity,/meters) ; m
       sun_spp_vector_HEQ = get_sunspice_coord( date, spacecraft, system='HEQ',/novelocity,/meters) ; m
-      
+
+if CircularOrbit_flag eq 1 then begin
+   circular_experiment_position
+   dist_SUN_SPP = CircularOrbit_Radius * rsun                                                      ; m
+   sun_spp_vector_J2000 = sun_obs_unit_J2k * CircularOrbit_Radius * rsun                           ; m
+   sun_spp_vector_HAE   = sun_obs_unit_HAE * CircularOrbit_Radius * rsun                           ; m
+   ; Incorrectly set HCI, HEE, and HEQ, to J2k. They are never used anyhow:
+   sun_spp_vector_HCI = sun_spp_vector_J2000
+   sun_spp_vector_HEE = sun_spp_vector_J2000
+   sun_spp_vector_HEQ = sun_spp_vector_J2000
+endif 
+
       dist_SUN_SPP_HCI   = sqrt(total(sun_spp_vector_HCI^2))                                       ; m
       dist_SUN_SPP_HAE   = sqrt(total(sun_spp_vector_HAE^2))                                       ; m
       dist_SUN_SPP_HEE   = sqrt(total(sun_spp_vector_HEE^2))                                       ; m
       dist_SUN_SPP_HEQ   = sqrt(total(sun_spp_vector_HEQ^2))                                       ; m
-      
+
 ;     Make sure all distances match within EPS accuracy
       EPS=1.e-5
       if abs(1.-dist_SUN_SPP/dist_SUN_SPP_HCI) gt EPS OR abs(1.-dist_SUN_SPP/dist_SUN_SPP_HAE) gt EPS OR abs(1.-dist_SUN_SPP/dist_SUN_SPP_HEE) gt EPS OR abs(1.-dist_SUN_SPP/dist_SUN_SPP_HEQ) gt EPS then begin
@@ -311,7 +345,6 @@ skip_earth:
 						vec = [0,0,0] ; Sun
                                                 dis = get_dis( kernel_targ1[0:2,0], vec ) * 1.e3 ; m
 
-
                                                 if long_start lt 0. then long_start = long_start + 360.
                                                 
 ;  Recompute sub-SPP lat lon using Bill's routine
@@ -331,6 +364,12 @@ skip_earth:
    long_start = r_CARR[1] ; deg
    lat_start  = r_CARR[2] ; deg
 
+   if CircularOrbit_flag eq 1 then begin
+      dis        = CircularOrbit_Radius * rsun ; m
+      long_start = CircularOrbit_Carlon        ; deg
+      lat_start  = CircularOrbit_Carlat        ; deg
+   endif
+   
    						lon_string = STRTRIM(long_start,2)
 						lat_string = STRTRIM(lat_start,2)
 						IF long_start GE 0 then lon_string = '+' + lon_string
@@ -537,6 +576,7 @@ common constants,c,rsun,au
 common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
 common SynthFITS,hdr_Inner_0,hdr_Outer_0,img_Inner_0,img_Outer_0,datadir,epoch,et
 common suffixes,suffix_binfac,suffix_square
+common experiment,CircularOrbit_flag,CircularOrbit_Radius,CircularOrbit_Carlon,CircularOrbit_Carlat,experiment_suffix
 
 ; Create HDR equal to "TestImages" Header
 hdr_Inner = hdr_Inner_0
@@ -547,8 +587,8 @@ hdr_Inner.DATE_OBS =  strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
 hdr_Outer.DATE_OBS =  strmid(epoch,0,10)+'T'+strmid(epoch,12,10)
 
 ; Create filenames
-filename_Inner = 'WISPR_I_'+hdr_Inner.DATE_OBS+suffix_square+suffix_binfac+'_Blank.fts'
-filename_Outer = 'WISPR_O_'+hdr_Inner.DATE_OBS+suffix_square+suffix_binfac+'_Blank.fts'
+filename_Inner = 'WISPR_I_'+hdr_Inner.DATE_OBS+suffix_square+suffix_binfac+'_Blank'+experiment_suffix+'.fts'
+filename_Outer = 'WISPR_O_'+hdr_Inner.DATE_OBS+suffix_square+suffix_binfac+'_Blank'+experiment_suffix+'.fts'
 
 ; Update .FILENAME
 hdr_Inner.FILENAME = filename_Inner
@@ -633,22 +673,83 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir
 
   if Orb[0] lt 10 then Orb_string = '0'+strmid(string(Orb[0]),7,1)
   if Orb[0] ge 10 then Orb_string =     strmid(string(Orb[0]),6,2)
+
   ps1,input_dir+table_file+'_coverage_plot.eps',0
+  DEVICE,XSIZE=20.0,YSIZE=10.0,scale_factor=10
+  !p.charsize=1.5
   plot,lon,HOW,xtitle='Sub-PSP Longitude [deg]',ytitle='Heliocentric Height [R!DSUN!N]',$
-       title='FOVs Orbit-'+Orb_string+': I (blue), O (red).',$
+       title='Orbit-'+Orb_string+' FOVs: Inner (blue), Outer (red).',$
        xr=[0,360],xstyle=1,$
        font=1,/nodata
   loadct,12
   blue=100
   red =200
-  thick=4
-  for i=1,Ndat-1 do begin
-     oplot,Lon[i]*[1,1],[HIE[i],HIW[i]],th=thick,color=blue,psym=4
-     oplot,Lon[i]*[1,1],[HIE[i],HIW[i]],th=thick,color=blue
-     oplot,Lon[i]*[1,1],[HOE[i],HOW[i]],th=thick,color=red ,psym=5
-     oplot,Lon[i]*[1,1],[HOE[i],HOW[i]],th=thick,color=red
+  thick=1
+  size=1
+  perihelion = median(where(HIE eq min(HIE)))
+  for i=0,Ndat-1 do begin
+     thick=1
+     if i eq 0 or i eq perihelion or i eq Ndat-1 then thick=4
+;    oplot,Lon[i]*[1,1]   ,[HIE[i],HIW[i]],th=thick,color=blue,psym=4
+     oplot,Lon[i]*[1,1]   ,[HIE[i],HIW[i]],th=thick,color=blue
+;    oplot,Lon[i]*[1,1]+1.,[HOE[i],HOW[i]],th=thick*2,color=red,psym=5
+     oplot,Lon[i]*[1,1]+1.,[HOE[i],HOW[i]],th=thick,color=red
+     if i eq 0 then begin
+     oplot,[Lon[i]   ],[(HIE[i]+HIW[i])/2.],th=thick,color=blue,psym=4,symsize=size
+     oplot,[Lon[i]+1.],[(HOE[i]+HOW[i])/2.],th=thick,color=red ,psym=4,symsize=size
+     endif
+     if i eq perihelion then begin
+     oplot,[Lon[i]   ],[(HIE[i]+HIW[i])/2.],th=thick,color=blue,psym=2,symsize=size
+     oplot,[Lon[i]+1.],[(HOE[i]+HOW[i])/2.],th=thick,color=red ,psym=2,symsize=size
+     endif
+     if i eq Ndat-1 then begin
+     oplot,[Lon[i]   ],[(HIE[i]+HIW[i])/2.],th=thick,color=blue,psym=5,symsize=size
+     oplot,[Lon[i]+1.],[(HOE[i]+HOW[i])/2.],th=thick,color=red ,psym=5,symsize=size
+     endif
   endfor
   loadct,0
   ps2
   stop
+end
+
+pro circular_experiment_position
+common sun_obs_unit_vector,sun_obs_unit_J2k,sun_obs_unit_HAE
+common experiment,CircularOrbit_flag,CircularOrbit_Radius,CircularOrbit_Carlon,CircularOrbit_Carlat,experiment_suffix
+
+; /* J2000 solar pole coords */
+  ALPHApo = 286.13 * !dtor
+  DELTApo =  63.87 * !dtor
+
+; /* solar pole vector */
+  spol1    = dblarr(3)
+  spol1[0] = cos(DELTApo) * cos(ALPHApo)
+  spol1[1] = cos(DELTApo) * sin(ALPHApo)
+  spol1[2] = sin(DELTApo)
+
+; g1 unit vector:  g1 = spol1 x unit_x
+; being unit_x = (1,0,0) the unit x vector of the J2000 coordinate system.
+  g1     =  dblarr(3)
+  g1[0]  =  0.
+  g1[1]  =  spol1[2]
+  g1[2]  = -spol1[1]
+  normg1 =  sqrt(total(g1^2))
+  g1     =  g1 / normg1
+
+;  /* the J2000.0 angle between the Ecliptic and mean Equatorial planes
+;   * is 23 deg 26 min 21.4119 sec - From Allen's Astrophysical
+;                                    Quantities, 4th ed. (2000) */
+; The added Carlat must be set to ZERO to get an equatorial orbit
+  
+  alpha = (23. + 26./60. + 21.4119/3600. + CircularOrbit_Carlat)*!dtor
+  
+; g0, being g1 in HAE coordinates.
+  g0    =  dblarr(3)
+  g0[0] =  g1[0]
+  g0[1] =  cos(alpha)*g1[1] + sin(alpha)*g1[2]
+  g0[2] = -sin(alpha)*g1[1] + cos(alpha)*g1[2]
+
+; Store the unit position vector in J2k and HAE
+  sun_obs_unit_J2k = g1
+  sun_obs_unit_HAE = g0
+
 end

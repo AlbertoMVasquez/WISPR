@@ -20,13 +20,21 @@
 ;                - Nov-19-2017 - Version 3.1. Added /squareFOV so that
 ;                  square FOVs are now optional. Adapted needed code
 ;                  to properly function with both square and non-square cases.
-;                - Dec-11-2017 - Version 3.2 Added /bin option to
+;                - Dec-11-2017 - Version 3.2. Added /bin option to
 ;                  generate images of smaller size, rebined by "bf",
 ;                  default value is bf=4.
+;                - Feb-05-2018 - Version 4.0. Adding non-constant
+;                  cadence to achieve uniform longitudinal coverage.
+;                  It is a bit tricky piece of code.
 ;
 ;;
 
-pro wispr_tool,loadk=loadk,correction=correction,SciOrbBrief=SciOrbBrief,ExtendedOrbits=ExtendedOrbits,FullList=FullList,ShortList=ShortList,CreateFITS=CreateFITS,Outdir=Outdir,basedir=basedir,SquareFOV=SquareFOV,bin=bin,bf=bf,CircularOrbits=CircularOrbits
+pro wispr_tool,loadk=loadk,correction=correction,FullList=FullList,ShortList=ShortList,$
+  SciOrbBrief=SciOrbBrief,$
+  ExtendedOrbits=ExtendedOrbits,ScienceOrbits=ScienceOrbits,ConstantCadence=ConstantCadence,Cadence=Cadence,UniformLong=UniformLong,DeltaLong=DeltaLong,$
+  CircularOrbits=CircularOrbits,Equatorial=Equatorial,OffEquator=OffEquator,$
+  CreateFITS=CreateFITS,Outdir=Outdir,basedir=basedir,$
+  SquareFOV=SquareFOV,bin=bin,bf=bf
 
 common constants,c,rsun,au
 common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, Pos_SunCenter_px_inner, Pos_SunCenter_px_outer, Distances_SUN_FOV_inner_Rsun, Distances_SUN_FOV_outer_Rsun,px_inner_arcsec,px_outer_arcsec,sun_spp_vector_HCI,sun_spp_vector_HAE,sun_spp_vector_HEE,sun_spp_vector_HEQ
@@ -74,18 +82,19 @@ common experiment,CircularOrbit_flag,CircularOrbit_Radius,CircularOrbit_Carlon,C
   suffix_square=''
  ;Create SQUARE images with the Test image located in its center,
  ;leaving all other pixels set to zero. Correct NAXIS2 in headers accordingly.
+ ;This code uses the BINFACTOR corrected sizes above if /binfac was set.
   if keyword_set(squareFOV) then begin
      suffix_square='_squareFOV'
-    ;Save original NAXIS2 in new variables
+    ;Save original NAXIS2 in new variables.
      naxis2_inner_original = hdr_Inner_0.NAXIS2
      naxis2_outer_original = hdr_Inner_0.NAXIS2
-    ;Correct NAXIS2 in headers
+    ;Correct NAXIS2 in headers to make square images.
      hdr_Inner_0.NAXIS2    = hdr_Inner_0.NAXIS1
      hdr_Outer_0.NAXIS2    = hdr_Outer_0.NAXIS1
-    ;Create empty square images
-     tmp_Inner = fltarr(hdr_Inner_0.NAXIS1,hdr_Inner_0.NAXIS2)
-     tmp_Outer = fltarr(hdr_Outer_0.NAXIS1,hdr_Outer_0.NAXIS2)
-    ;Fit non-square image into center of square image.
+    ;Create empty (-999) square images.
+     tmp_Inner = fltarr(hdr_Inner_0.NAXIS1,hdr_Inner_0.NAXIS2) - 999.
+     tmp_Outer = fltarr(hdr_Outer_0.NAXIS1,hdr_Outer_0.NAXIS2) - 999.
+    ;Fit non-square images into center of (-999) square images.
      index0_inner = (hdr_Inner_0.NAXIS2-naxis2_inner_original)/2
      index0_outer = (hdr_Outer_0.NAXIS2-naxis2_outer_original)/2
      tmp_Inner(*,index0_inner:index0_inner+naxis2_inner_original-1) = img_Inner_0
@@ -100,6 +109,8 @@ common experiment,CircularOrbit_flag,CircularOrbit_Radius,CircularOrbit_Carlon,C
      experiment_suffix='.CircularOrbits_OffEquator'
      CircularOrbit_flag = 1
   endif
+
+ if keyword_set(UniformLong) then experiment_suffix = '.UniformLong'
   
   if keyword_set(FullList)  then begin
   listtype = 'full'
@@ -138,23 +149,30 @@ if keyword_set(SciOrbBrief) then begin
   EpochArray(0,*)  = ['2018-10-26  21:42:28','2018-11 01  03:42:28','2018-11-07  03:42:28']
   EpochArray(1,*)  = ['2022-05-23  04:47:11','2022-05-28  06:47:11','2022-06-02  11:47:11']
   EpochArray(2,*)  = ['2025-06-09  19:20:06','2025-06-14  16:20:06','2025-06-19  13:20:06']
-
 ; Convert the Epoch to ephemeris time (ET).
   ETarray = dblarr(Norbits,Nepochs)
   ETval=0.d
   for i=0,Norbits-1 do begin
   for j=0,Nepochs-1 do begin
-    cspice_str2et, EpochArray[i,j], ETval & ETarray[i,j] = ETval
+     cspice_str2et, EpochArray[i,j], ETval
+     ETarray[i,j] = ETval
   endfor
   endfor
 endif
 
 if keyword_set(ExtendedOrbits) or keyword_set(CircularOrbits) then begin
+   if keyword_set(ExtendedOrbits) AND NOT keyword_set(ConstantCadence) AND NOT keyword_set(UniformLong) then begin
+      print,'When selecting /ExtendeOrbits please specify: /ConstantCadence or /UniformLong.'
+      return
+   endif
+
    StartEpoch = ['2018-10-15  10:00:00','2022-05-12  10:00:00','2025-05-30  10:00:00']
    cspice_str2et, StartEpoch, StartET
-   NumDays         = 30.                    ; days 
-   Cadence         = 0.5                    ; days
-   CadenceSeconds  = Cadence * cspice_spd() ; secs. It is the step in ET, in double precision. 
+
+if keyword_set(ConstantCadence) then begin
+   NumDays         = 30.                          ; days 
+   if NOT keyword_set(Cadence) then Cadence = 0.5 ; days
+   CadenceSeconds  = Cadence * cspice_spd()       ; secs. It is the step in ET, in double precision. 
    Nepochs         = fix(Numdays / Cadence)
    EpochArray      = strarr(Norbits,Nepochs)
    ETarray         = dblarr(Norbits,Nepochs)
@@ -163,13 +181,77 @@ if keyword_set(ExtendedOrbits) or keyword_set(CircularOrbits) then begin
        ETarray   [i,*] = ETarray[i,0] + CadenceSeconds * findgen(Nepochs)
        cspice_timout, reform(ETarray[i,*]), 'YYYY-MM-DD  HR:MN:SC', 22, EpochVector
        EpochArray[i,*] = EpochVector
+    endfor
+endif
+
+if keyword_set(UniformLong) then begin
+   CadenceSeconds0 = 6.0 * 3600.d0  ; sec  (6 hr cadence as base, it will be decreased when needed).
+   Nepochs         = 1000           ; Excedengly large number 
+   EpochArray      = strarr(Norbits,Nepochs)
+   ETarray         = dblarr(Norbits,Nepochs) - 666.
+   Longarray       = fltarr(Norbits,Nepochs) - 666.
+   EpochArray[*,0] = StartEpoch
+   ETarray   [*,0] = StartET
+   for io=0,Norbits-1 do begin
+      ET1 = reform(ETarray[io,0])
+      cspice_timout, ET1, 'YYYY-MM-DD  HR:MN:SC', 22, EPOCH1
+      DATE1   = strmid(EPOCH1,0,10)+'T'+strmid(EPOCH1,12,10)
+      POS1    = get_sunspice_lonlat( DATE1, 'SPP', system='Carrington',/meters,/degrees)
+      Longarray[io,0] = POS1[1] ; deg
    endfor
+  ; Increace ET1 every CadenceSeconds and store ET1 and its EPOCH1 when
+  ; achiveing a PSP sub-longitude step of DeltaLong within EPS accuracy
+   EPS = 1.e-2
+   if not keyword_set(DeltaLong) then DeltaLong = 3. ; deg
+   for io=0,Norbits-1 do begin
+      it  = 1
+      continue_in_orbit:
+      ET1            = reform(ETarray[io,it-1])
+      CadenceSeconds = CadenceSeconds0
+      add_CadenceSeconds:
+      ET1 = ET1 + CadenceSeconds
+      cspice_timout, ET1, 'YYYY-MM-DD  HR:MN:SC', 22, EPOCH1
+      DATE1    = strmid(EPOCH1,0,10)+'T'+strmid(EPOCH1,12,10)
+      POS1     = get_sunspice_lonlat( DATE1, 'SPP', system='Carrington',/meters,/degrees)
+      SUBLON1  = POS1[1] ; deg
+      DIST1    = POS1[0] ; m
+      long1    = reform(Longarray[io,it-1])
+      long2    = SUBLON1
+      LongStep = long2 - long1
+     ; Next line deals with the crossing of point Long=0.
+      if long1 lt DeltaLong AND long2 gt 360.-DeltaLong then LongStep = LongStep - 360.
+      if long2 lt DeltaLong AND long1 gt 360.-DeltaLong then LongStep = LongStep + 360.
+     ;if LongStep lt 0. then goto,add_CadenceSeconds; Proceed again.
+      if ABS(LongStep) lt DeltaLong*(1.-EPS) then goto,add_CadenceSeconds
+      if ABS(LongStep) gt DeltaLong*(1.+EPS) then begin
+         ET1 = ET1 - CadenceSeconds           ; Return to previous ET1 value.
+         CadenceSeconds = CadenceSeconds / 2. ; Adapt CadenceSeconds if it was too large.
+        ;print,'LongStep    ='+string(LongStep)      +' deg.'
+        ;print,'New Cadence ='+string(CadenceSeconds)+' sec.'
+         goto,add_CadenceSeconds              ; Proceed again.
+      endif
+      EpochArray[io,it] = EPOCH1
+      ETarray   [io,it] = ET1
+      Longarray [io,it] = SUBLON1
+      it = it + 1
+      print,'Orbit '+string(io)+string(it)+'   '+EPOCH1+string(ET1)+string(SUBLON1)+string(LongStep)
+      if DIST1 le 0.51*AU then goto,continue_in_orbit
+   endfor; Endorbit.
+endif ; If UniformLong was set
+
    if CircularOrbit_flag eq 1 then begin
                 Radius = [10.,40.,80.]
           delta_carlon = 360./Nepochs ; deg
-      amplitude_carlat = 3.           ; deg
-            ;latitudes = fltarr(Nepoch)    
-             latitudes = -amplitude_carlat + 2.*amplitude_carlat*findgen(Nepochs)/float(Nepochs-1) ; deg
+         if NOT keyword_set(Equatorial) AND NOT keyword_set(OffEquator) then begin
+            print,'When selecting /CircularOrbits please specify: /Equatorial or /OffEquator.'
+            return
+         endif
+         if keyword_set(Equatorial) then latitudes = fltarr(Nepoch)    
+         if keyword_set(OffEquator) then begin
+            amplitude_carlat = 3.           ; deg
+            latitudes = -amplitude_carlat + 2.*amplitude_carlat*findgen(Nepochs)/float(Nepochs-1) ; deg
+         endif        
+
    endif
 endif
 
@@ -184,6 +266,11 @@ endif
   for i=0,Norbits-1 do begin
   writekeys,fileID=1
   if CircularOrbit_flag eq 1 then CircularOrbit_Radius = Radius[i]
+  if keyword_set(UniformLong) then begin
+     ET_vector = reform(ETarray(i,*))
+     p = where(ET_vector ne -666.)
+     Nepochs = n_elements(p)
+  endif
   for j=0,Nepochs-1 do begin
   epoch = EpochArray[i,j]
      et = ETarray   [i,j]
@@ -204,8 +291,9 @@ endif
   endif
   writedata,fileID=1,SciOrbNum=SciOrbNum,epocharray=epocharray,etarray=etarray
   if keyword_set(CreateFITS) then Create_FITS
-  endfor
-  endfor
+  endfor; Loop Epochs of given Orbit
+  endfor; Loop Orbits
+  
   dash_line,fileID=1
   closefiles
  
@@ -659,7 +747,50 @@ mwritefits,hdr_Outer,img_Outer_0,outfile=datadir+filename_Outer
 return
 end
 
-pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir
+; radlon_coverage_plot,table_file='table.ScienceOrbit01.short.txt'
+; radlon_coverage_plot,table_file='table.ScienceOrbit12.short.txt'
+; radlon_coverage_plot,table_file='table.ScienceOrbit24.short.txt'
+
+pro wrapper_radlon_coverage
+
+ radlon_coverage_plot,table_file='table.CircularOrbit01.short.txt',/fov_edge_lon
+
+ return
+  
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.txt',/fov_center_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.01.txt',/fov_center_lon
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.txt',/fov_center_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.12.txt',/fov_center_lon
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.txt',/fov_center_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.24.txt',/fov_center_lon
+
+ stop
+ 
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.01.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.12.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.24.txt',/fov_edge_lon
+ 
+
+ stop
+ 
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.txt',/sub_psp_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.01.txt',/sub_psp_lon
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.txt',/sub_psp_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.12.txt',/sub_psp_lon
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.txt',/sub_psp_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.24.txt',/sub_psp_lon
+
+ return
+end
+
+pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
+                         fov_center_lon=fov_center_lon,fov_edge_lon=fov_edge_lon,sub_psp_lon=sub_psp_lon
+  common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,alphaO_W ; all in deg
+
+  load_fov_pointings
 
   if not keyword_set(input_dir) then input_dir='/data1/work/SPP/SORBET_VIZZER_WISPR_RevA/'
 
@@ -674,12 +805,33 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir
   if Orb[0] lt 10 then Orb_string = '0'+strmid(string(Orb[0]),7,1)
   if Orb[0] ge 10 then Orb_string =     strmid(string(Orb[0]),6,2)
 
-  ps1,input_dir+table_file+'_coverage_plot.eps',0
+  if keyword_set(sub_psp_lon)    then begin
+     suffix = '_sub-psp-lon'
+     xtitle = 'Sub-PSP Longitude [deg]'
+     xmin   = 0. ; deg 
+     xmax   = 0. ; deg 
+  endif
+  
+  if keyword_set(fov_edge_lon)   then begin
+     suffix = '_fov-edge-lon'
+     xtitle = 'FOV-Edges Longitude [deg]'
+     xmin   = -100. ; deg 
+     xmax   = +500. ; deg 
+ endif
+  
+  if keyword_set(fov_center_lon) then begin
+     suffix = '_fov-center-lon'
+     xtitle = 'FOV-Center Longitude [deg]'
+     xmin   = -100. ; deg 
+     xmax   = +500. ; deg 
+  endif
+
+  ps1,input_dir+table_file+'_coverage_plot'+suffix+'.eps',0
   DEVICE,XSIZE=20.0,YSIZE=10.0,scale_factor=10
   !p.charsize=1.5
-  plot,lon,HOW,xtitle='Sub-PSP Longitude [deg]',ytitle='Heliocentric Height [R!DSUN!N]',$
+  plot,lon,HOW,xtitle=xtitle,ytitle='Heliocentric Height [R!DSUN!N]',$
        title='Orbit-'+Orb_string+' FOVs: Inner (blue), Outer (red).',$
-       xr=[0,360],xstyle=1,$
+       xr=[xmin,xmax],xstyle=1,$
        font=1,/nodata
   loadct,12
   blue=100
@@ -687,29 +839,61 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir
   thick=1
   size=1
   perihelion = median(where(HIE eq min(HIE)))
+;common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,alphaO_W ; all in deg  
   for i=0,Ndat-1 do begin
      thick=1
+     
+    if keyword_set(fov_edge_lon) then begin
+     shift_IO =  0. ; deg
+     deltaI_E = 90. - alphaI_E  & LonI_E = Lon[i] + deltaI_E  
+     deltaI_C = 90. - alphaI_C  & LonI_C = Lon[i] + deltaI_C
+     deltaI_W = 90. - alphaI_W  & LonI_W = Lon[i] + deltaI_W     
+     deltaO_E = 90. - alphaO_E  & LonO_E = Lon[i] + deltaO_E + shift_IO
+     deltaO_C = 90. - alphaO_C  & LonO_C = Lon[i] + deltaO_C + shift_IO
+     deltaO_W = 90. - alphaO_W  & LonO_W = Lon[i] + deltaO_W + shift_IO
+    endif
+
+    if keyword_set(fov_center_lon) then begin
+       shift_IO =  0. ; deg
+       deltaI_C = 90. - alphaI_C  & LonI_C = Lon[i] + deltaI_C
+       deltaO_C = 90. - alphaO_C  & LonO_C = Lon[i] + deltaO_C + shift_IO
+       LonI_E = LonI_C
+       LonI_C = LonI_C
+       LonI_W = LonI_C
+       LonO_E = LonO_C + shift_IO
+       LonO_C = LonO_C + shift_IO       
+       LonO_W = LonO_C + shift_IO
+    endif
+
+    if keyword_set(sub_psp_lon) then begin
+       shift_IO = 0.5 ; deg
+       LonI_E = Lon[i]
+       LonI_C = Lon[i]
+       LonI_W = Lon[i]
+       LonO_E = Lon[i] + shift_IO
+       LonO_C = Lon[i] + shift_IO       
+       LonO_W = Lon[i] + shift_IO
+    endif
+   
      if i eq 0 or i eq perihelion or i eq Ndat-1 then thick=4
-;    oplot,Lon[i]*[1,1]   ,[HIE[i],HIW[i]],th=thick,color=blue,psym=4
-     oplot,Lon[i]*[1,1]   ,[HIE[i],HIW[i]],th=thick,color=blue
-;    oplot,Lon[i]*[1,1]+1.,[HOE[i],HOW[i]],th=thick*2,color=red,psym=5
-     oplot,Lon[i]*[1,1]+1.,[HOE[i],HOW[i]],th=thick,color=red
+     oplot,[LonI_E,LonI_W],[HIE[i],HIW[i]],th=thick,color=blue
+     oplot,[LonO_E,LonO_W],[HOE[i],HOW[i]],th=thick,color=red
      if i eq 0 then begin
-     oplot,[Lon[i]   ],[(HIE[i]+HIW[i])/2.],th=thick,color=blue,psym=4,symsize=size
-     oplot,[Lon[i]+1.],[(HOE[i]+HOW[i])/2.],th=thick,color=red ,psym=4,symsize=size
+     oplot,[LonI_C],[(HIE[i]+HIW[i])/2.],th=thick,color=blue,psym=4,symsize=size
+     oplot,[LonO_C],[(HOE[i]+HOW[i])/2.],th=thick,color=red ,psym=4,symsize=size
      endif
      if i eq perihelion then begin
-     oplot,[Lon[i]   ],[(HIE[i]+HIW[i])/2.],th=thick,color=blue,psym=2,symsize=size
-     oplot,[Lon[i]+1.],[(HOE[i]+HOW[i])/2.],th=thick,color=red ,psym=2,symsize=size
+     oplot,[LonI_C],[(HIE[i]+HIW[i])/2.],th=thick,color=blue,psym=2,symsize=size
+     oplot,[LonO_C],[(HOE[i]+HOW[i])/2.],th=thick,color=red ,psym=2,symsize=size
      endif
      if i eq Ndat-1 then begin
-     oplot,[Lon[i]   ],[(HIE[i]+HIW[i])/2.],th=thick,color=blue,psym=5,symsize=size
-     oplot,[Lon[i]+1.],[(HOE[i]+HOW[i])/2.],th=thick,color=red ,psym=5,symsize=size
+     oplot,[LonI_C],[(HIE[i]+HIW[i])/2.],th=thick,color=blue,psym=5,symsize=size
+     oplot,[LonO_C],[(HOE[i]+HOW[i])/2.],th=thick,color=red ,psym=5,symsize=size
      endif
   endfor
   loadct,0
   ps2
-  stop
+return
 end
 
 pro circular_experiment_position
@@ -753,3 +937,20 @@ common experiment,CircularOrbit_flag,CircularOrbit_Radius,CircularOrbit_Carlon,C
   sun_obs_unit_HAE = g0
 
 end
+
+pro load_fov_pointings
+  common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,alphaO_W ; all in deg
+
+  alphaI_C = 32.2 ; deg 
+  deltaI   = 40.9 ; deg 
+  alphaO_C = 77.0 ; deg 
+  deltaO   = 59.2 ; deg 
+  
+  alphaI_E = alphaI_C - deltaI/2.
+  alphaI_W = alphaI_C + deltaI/2.
+  alphaO_E = alphaO_C - deltaO/2.
+  alphaO_W = alphaO_C + deltaO/2.
+  
+  return
+end
+

@@ -753,9 +753,14 @@ end
 
 pro wrapper_radlon_coverage
 
- radlon_coverage_plot,table_file='table.CircularOrbit01.short.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.txt',/sub_psp_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.01.txt',/sub_psp_lon
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.txt',/sub_psp_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.12.txt',/sub_psp_lon
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.txt',/sub_psp_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.24.txt',/sub_psp_lon
 
- return
+return
   
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.txt',/fov_center_lon
  radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.01.txt',/fov_center_lon
@@ -764,25 +769,29 @@ pro wrapper_radlon_coverage
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.txt',/fov_center_lon
  radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.24.txt',/fov_center_lon
 
- stop
+ return
  
- radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.txt',/fov_edge_lon
- radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.01.txt',/fov_edge_lon
- radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.txt',/fov_edge_lon
- radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.12.txt',/fov_edge_lon
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.txt',/fov_edge_lon
  radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.24.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.12.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.01.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.CircularOrbit01.short.txt',/fov_edge_lon
+ return
+
+ radlon_coverage_plot,table_file='table.UnifLong.MidOrbit.01.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.MidOrbit.12.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.MidOrbit.24.txt',/fov_edge_lon
+ 
+ return
  
 
  stop
  
- radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.txt',/sub_psp_lon
- radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.01.txt',/sub_psp_lon
- radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.txt',/sub_psp_lon
- radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.12.txt',/sub_psp_lon
- radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.txt',/sub_psp_lon
- radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.24.txt',/sub_psp_lon
 
+ stop
+ 
  return
 end
 
@@ -808,15 +817,15 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
   if keyword_set(sub_psp_lon)    then begin
      suffix = '_sub-psp-lon'
      xtitle = 'Sub-PSP Longitude [deg]'
-     xmin   = 0. ; deg 
-     xmax   = 0. ; deg 
+     xmin   = - 30. ; deg 
+     xmax   = +460. ; deg 
   endif
   
   if keyword_set(fov_edge_lon)   then begin
      suffix = '_fov-edge-lon'
      xtitle = 'FOV-Edges Longitude [deg]'
-     xmin   = -100. ; deg 
-     xmax   = +500. ; deg 
+     xmin   = - 30. ; deg 
+     xmax   = +460. ; deg 
  endif
   
   if keyword_set(fov_center_lon) then begin
@@ -829,10 +838,39 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
   ps1,input_dir+table_file+'_coverage_plot'+suffix+'.eps',0
   DEVICE,XSIZE=20.0,YSIZE=10.0,scale_factor=10
   !p.charsize=1.5
+
+  dextlon   = 60
+  Nextlon   = (xmax-xmin)/dextlon + 1
+   extlon   = xmin+dextlon*findgen(Nextlon)
+  extlonlab = strarr(Nextlon)
+  for i=0,Nextlon-1 do begin
+     tmp = extlon(i)
+     if tmp lt   0. then tmp = tmp + 360.
+     if tmp gt 360. then tmp = tmp - 360.
+     if tmp ge   0. and tmp lt  10. then extlonlab(i) = strmid(string(tmp),6,1)
+     if tmp ge  10. and tmp lt 100. then extlonlab(i) = strmid(string(tmp),6,2)
+     if tmp ge 100. and tmp le 360. then extlonlab(i) = strmid(string(tmp),6,3)
+  endfor
+  
+  exthow=max(how)+fltarr(Nextlon)
+
+  goto,skip
   plot,lon,HOW,xtitle=xtitle,ytitle='Heliocentric Height [R!DSUN!N]',$
        title='Orbit-'+Orb_string+' FOVs: Inner (blue), Outer (red).',$
        xr=[xmin,xmax],xstyle=1,$
        font=1,/nodata
+  skip:
+
+  plot,extlon,exthow,$
+       xtitle=xtitle,ytitle='Heliocentric Height [R!DSUN!N]',$
+       title='Orbit-'+Orb_string+' FOVs: Inner (blue), Outer (red).',$
+       xr=[xmin,xmax],xstyle=1,$
+       font=1,/nodata,$
+       xticks=Nextlon,xtickname = extlonlab,xtickv=extlon
+
+  oplot,  0*[1,1],max(how)*[0,2]
+  oplot,360*[1,1],max(how)*[0,2]
+  
   loadct,12
   blue=100
   red =200

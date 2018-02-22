@@ -44,11 +44,15 @@ common SynthFITS,hdr_Inner_0,hdr_Outer_0,img_Inner_0,img_Outer_0,datadir,epoch,e
 common FOVs,FOVW_inner_px,FOVH_inner_px,FOVW_outer_px,FOVH_outer_px
 common suffixes,suffix_binfac,suffix_square
 common experiment,CircularOrbit_flag,CircularOrbit_Radius,CircularOrbit_Carlon,CircularOrbit_Carlat,experiment_suffix
+common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,alphaO_W ; all in deg
 
   if NOT keyword_set(Outdir) then Outdir='../TestImage/'
   ;Handle basedir and datadir
   if not keyword_set(basedir) then basedir='/data1/'
   datadir=Outdir
+
+  ;load WISPR FOVs
+   load_fov_pointings
   
   ;load useful constants
    loadconstants
@@ -106,7 +110,7 @@ common experiment,CircularOrbit_flag,CircularOrbit_Radius,CircularOrbit_Carlon,C
   CircularOrbit_flag = 0
   experiment_suffix   = ''
   if keyword_set(CircularOrbits) then begin
-     experiment_suffix='.CircularOrbits_OffEquator'
+     experiment_suffix='.CircularOrbits3degUnifStep_'
      CircularOrbit_flag = 1
   endif
 
@@ -138,7 +142,7 @@ common experiment,CircularOrbit_flag,CircularOrbit_Radius,CircularOrbit_Carlon,C
   if not keyword_set(correction) then abcorr = 'NONE'
 
   ; set orbital ephemerides:
-  SciOrbNum   = [1,12,24]
+  SciOrbNum   = [1];[1,12,24]
   Norbits     = n_elements(SciOrbNum)
 
 if keyword_set(SciOrbBrief) then begin
@@ -176,7 +180,7 @@ if keyword_set(ConstantCadence) then begin
    Nepochs         = fix(Numdays / Cadence)
    EpochArray      = strarr(Norbits,Nepochs)
    ETarray         = dblarr(Norbits,Nepochs)
-   ETarray   [*,0] = StartET
+   ETarray   [*,0] = StartET[0:Norbits-1]
    for i=0,Norbits-1 do begin
        ETarray   [i,*] = ETarray[i,0] + CadenceSeconds * findgen(Nepochs)
        cspice_timout, reform(ETarray[i,*]), 'YYYY-MM-DD  HR:MN:SC', 22, EpochVector
@@ -246,7 +250,7 @@ endif ; If UniformLong was set
             print,'When selecting /CircularOrbits please specify: /Equatorial or /OffEquator.'
             return
          endif
-         if keyword_set(Equatorial) then latitudes = fltarr(Nepoch)    
+         if keyword_set(Equatorial) then latitudes = fltarr(Nepochs)    
          if keyword_set(OffEquator) then begin
             amplitude_carlat = 3.           ; deg
             latitudes = -amplitude_carlat + 2.*amplitude_carlat*findgen(Nepochs)/float(Nepochs-1) ; deg
@@ -354,6 +358,7 @@ common spp_numbers, sun_spp_vector_J2000, dist_SUN_SPP, long_start, lat_start, P
 common FOVs,FOVW_inner_px,FOVH_inner_px,FOVW_outer_px,FOVH_outer_px
 common experiment,CircularOrbit_flag,CircularOrbit_Radius,CircularOrbit_Carlon,CircularOrbit_Carlat,experiment_suffix
 common sun_obs_unit_vector,sun_obs_unit_J2k,sun_obs_unit_HAE
+common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,alphaO_W ; all in deg
 
     ;; Define parameters for a position lookup:
      ; Return the position vector of SPP as seen from SUN in the J2000 at the EPOCH
@@ -491,12 +496,11 @@ endif
       cspice_getfov, SPP_WISPR_OUTER_NAIF_ID, room2, shape2, frame2, bsight2, bounds2
       skip:
 
-      ; WISPRI/O swing (Z) and fov angles
-      wispr_inner_Z_angle   = 32.2 * !dtor ; rad
-      wispr_inner_FOV_angle = 40.9 * !dtor ; rad
-
-      wispr_outer_Z_angle   = 77.0 * !dtor ; rad
-      wispr_outer_FOV_angle = 59.2 * !dtor ; rad
+      ; WISPRI/O swing (Z) and fov angles, LOADED 
+      wispr_inner_Z_angle   = alphaI_C * !dtor ; rad
+      wispr_inner_FOV_angle = deltaI   * !dtor ; rad
+      wispr_outer_Z_angle   = alphaO_C * !dtor ; rad
+      wispr_outer_FOV_angle = deltaO   * !dtor ; rad
 
       ; WISPRI/O angles for FOV East edge (E) and FOV West edge (W)
       wispr_inner_E_angle = wispr_inner_Z_angle - wispr_inner_FOV_angle / 2. ; rad
@@ -752,7 +756,9 @@ end
 ; radlon_coverage_plot,table_file='table.ScienceOrbit24.short.txt'
 
 pro wrapper_radlon_coverage
-
+  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.txt',/fov_edge_lon
+  stop
+  
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.txt',/sub_psp_lon
  radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.01.txt',/sub_psp_lon
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.txt',/sub_psp_lon
@@ -889,7 +895,8 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
      deltaO_E = 90. - alphaO_E  & LonO_E = Lon[i] + deltaO_E + shift_IO
      deltaO_C = 90. - alphaO_C  & LonO_C = Lon[i] + deltaO_C + shift_IO
      deltaO_W = 90. - alphaO_W  & LonO_W = Lon[i] + deltaO_W + shift_IO
-    endif
+stop
+  endif
 
     if keyword_set(fov_center_lon) then begin
        shift_IO =  0. ; deg
@@ -979,6 +986,11 @@ end
 pro load_fov_pointings
   common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,alphaO_W ; all in deg
 
+goto,updated_values:
+; These are the original values we used for the Simulations carried
+; out at CLASP in 2017 and Buenos Aires in early 2018, updated now by
+; the numbers below.
+
   alphaI_C = 32.2 ; deg 
   deltaI   = 40.9 ; deg 
   alphaO_C = 77.0 ; deg 
@@ -989,6 +1001,46 @@ pro load_fov_pointings
   alphaO_E = alphaO_C - deltaO/2.
   alphaO_W = alphaO_C + deltaO/2.
   
+updated_values:
+; These are the values updated by Angelos on February-21-2018, during
+; the WISPR planning meeting at Maryland.
+  alphaI_C = 0.5*( 51.4 + 13.5) ; deg 
+  deltaI   =     ( 51.4 - 13.5) ; deg 
+  alphaO_C = 0.5*(104.7 + 49.7) ; deg 
+  deltaO   =     (104.7 - 49.7) ; deg 
+  
+  alphaI_E = alphaI_C - deltaI/2.
+  alphaI_W = alphaI_C + deltaI/2.
+  alphaO_E = alphaO_C - deltaO/2.
+  alphaO_W = alphaO_C + deltaO/2.
+  
   return
 end
 
+pro compare_spp_pointings
+  common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,alphaO_W ; all in deg
+
+  load_fov_pointings
+  load_updated_fov_pointings
+
+  v  = [alphaI_E,alphaI_W,alphaO_E,alphaO_W]
+  v1 = [alphaI_E_1,alphaI_W_1,alphaO_E_1,alphaO_W_1]
+  print,'WISPR pointing information:'
+  print,'      T1_inner     T1_outer     T2_inner     T2_outter'
+  print,'Used:    ',v
+  print,'Updated: ',v1
+  print,'Fractional relative difference of Used values relative to updated ones:'
+  frdiff = (v-v1) / v1
+  print,'          ',frdiff
+  print
+  print,'Pxiel size [arcsec]'
+  print,'Used:   ',[deltaI  ,deltaO  ]*3600./2048
+  print,'Updated:',[deltaI_1,deltaO_1]*3600./2048
+  print,'Fractional relative difference of Used values relative to updated ones:'
+  frdiff = ([deltaI  ,deltaO] - [deltaI_1,deltaO_1])/[deltaI_1,deltaO_1]
+  print,'          ',frdiff
+  print
+
+  stop
+  return
+end

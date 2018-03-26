@@ -25,7 +25,6 @@
 ;                  default value is bf=4.
 ;                - Feb-05-2018 - Version 4.0. Adding non-constant
 ;                  cadence to achieve uniform longitudinal coverage.
-;                  It is a bit tricky piece of code.
 ;
 ;;
 
@@ -64,7 +63,7 @@ common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,
       load_sunspice_gen  
       ;; Load a set of kernels:  Use a meta kernel for convenience.
       cspice_furnsh, 'wispr_albert.tm'
-  endif
+   endif
 
  ;Load sample FITS
   mreadfits,basedir+'work/SPP/TestImage/WISPR-EM3_FM1_Inner.fits',hdr_Inner_0,img_Inner_0
@@ -142,7 +141,7 @@ common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,
   if not keyword_set(correction) then abcorr = 'NONE'
 
   ; set orbital ephemerides:
-  SciOrbNum   = [1];[1,12,24]
+  SciOrbNum   = [1,12,24]
   Norbits     = n_elements(SciOrbNum)
 
 if keyword_set(SciOrbBrief) then begin
@@ -243,9 +242,23 @@ if keyword_set(UniformLong) then begin
    endfor; Endorbit.
 endif ; If UniformLong was set
 
-   if CircularOrbit_flag eq 1 then begin
-                Radius = [10.,40.,80.]
-          delta_carlon = 360./Nepochs ; deg
+if CircularOrbit_flag eq 1 then begin
+   Norbits=1
+   Radius = [10.,40.,80.]
+   Nepochs = 120
+   delta_carlon = 360./Nepochs  ; deg
+   Cadence = 0.25 ; days
+   CadenceSeconds  = Cadence * cspice_spd()       ; secs. It is the step in ET, in double precision. 
+   EpochArray      = strarr(Norbits,Nepochs)
+   ETarray         = dblarr(Norbits,Nepochs)
+   ETarray   [*,0] = StartET[0:Norbits-1]
+   for i=0,Norbits-1 do begin
+       ETarray   [i,*] = ETarray[i,0] + CadenceSeconds * findgen(Nepochs)
+       cspice_timout, reform(ETarray[i,*]), 'YYYY-MM-DD  HR:MN:SC', 22, EpochVector
+       EpochArray[i,*] = EpochVector
+    endfor
+ 
+ 
          if NOT keyword_set(Equatorial) AND NOT keyword_set(OffEquator) then begin
             print,'When selecting /CircularOrbits please specify: /Equatorial or /OffEquator.'
             return
@@ -986,7 +999,7 @@ end
 pro load_fov_pointings
   common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,alphaO_W ; all in deg
 
-goto,updated_values:
+goto,updated_values
 ; These are the original values we used for the Simulations carried
 ; out at CLASP in 2017 and Buenos Aires in early 2018, updated now by
 ; the numbers below.

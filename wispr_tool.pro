@@ -769,9 +769,17 @@ end
 ; radlon_coverage_plot,table_file='table.ScienceOrbit24.short.txt'
 
 pro wrapper_radlon_coverage
-  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.txt',/fov_edge_lon
-  stop
-  
+
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.UPDATED-POINTINGS.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.24.UPDATED-POINTINGS.txt',/fov_edge_lon
+ return
+ 
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.UPDATED-POINTINGS.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.01.UPDATED-POINTINGS.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.CircularOrbit01.short.UPDATED-POINTINGS.txt',/fov_edge_lon
+
+ return
+ 
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.txt',/sub_psp_lon
  radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.01.txt',/sub_psp_lon
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.txt',/sub_psp_lon
@@ -908,7 +916,6 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
      deltaO_E = 90. - alphaO_E  & LonO_E = Lon[i] + deltaO_E + shift_IO
      deltaO_C = 90. - alphaO_C  & LonO_C = Lon[i] + deltaO_C + shift_IO
      deltaO_W = 90. - alphaO_W  & LonO_W = Lon[i] + deltaO_W + shift_IO
-stop
   endif
 
     if keyword_set(fov_center_lon) then begin

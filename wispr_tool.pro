@@ -257,8 +257,7 @@ if CircularOrbit_flag eq 1 then begin
        cspice_timout, reform(ETarray[i,*]), 'YYYY-MM-DD  HR:MN:SC', 22, EpochVector
        EpochArray[i,*] = EpochVector
     endfor
- 
- 
+  
          if NOT keyword_set(Equatorial) AND NOT keyword_set(OffEquator) then begin
             print,'When selecting /CircularOrbits please specify: /Equatorial or /OffEquator.'
             return
@@ -770,13 +769,24 @@ end
 
 pro wrapper_radlon_coverage
 
- radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.UPDATED-POINTINGS.txt',/fov_edge_lon
- radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.24.UPDATED-POINTINGS.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.CircularOrbit01.short.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
  return
  
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.UPDATED-POINTINGS.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.UPDATED-POINTINGS.txt',/fov_edge_lon
+ radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
+ 
+ return
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.12.UPDATED-POINTINGS.txt',/fov_edge_lon
+
+
+
+ radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.24.UPDATED-POINTINGS.txt',/fov_edge_lon
+ return
+ 
+
  radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.01.UPDATED-POINTINGS.txt',/fov_edge_lon
- radlon_coverage_plot,table_file='table.CircularOrbit01.short.UPDATED-POINTINGS.txt',/fov_edge_lon
+
 
  return
  
@@ -813,17 +823,12 @@ return
  
  return
  
-
- stop
- 
-
- stop
- 
  return
 end
 
 pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
-                         fov_center_lon=fov_center_lon,fov_edge_lon=fov_edge_lon,sub_psp_lon=sub_psp_lon
+                         fov_center_lon=fov_center_lon,fov_edge_lon=fov_edge_lon,sub_psp_lon=sub_psp_lon,$
+                         xtit=xtit
   common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,alphaO_W ; all in deg
 
   load_fov_pointings
@@ -850,6 +855,8 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
   
   if keyword_set(fov_edge_lon)   then begin
      suffix = '_fov-edge-lon'
+     xtitle=''
+     if keyword_set(xtit) then $
      xtitle = 'FOV-Edges Longitude [deg]'
      xmin   = - 30. ; deg 
      xmax   = +460. ; deg 
@@ -890,7 +897,8 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
 
   plot,extlon,exthow,$
        xtitle=xtitle,ytitle='Heliocentric Height [R!DSUN!N]',$
-       title='Orbit-'+Orb_string+' FOVs: Inner (blue), Outer (red).',$
+;      title='Circular Orbit of radius 10 R!DSUN!N',$
+       title='PSP Orbit-'+Orb_string,$     ;+' FOVs: Inner (blue), Outer (red).',$
        xr=[xmin,xmax],xstyle=1,$
        font=1,/nodata,$
        xticks=Nextlon,xtickname = extlonlab,xtickv=extlon

@@ -770,7 +770,7 @@ end
 pro wrapper_radlon_coverage
 
  radlon_coverage_plot,table_file='table.CircularOrbit01.short.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
- return
+
 
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.UPDATED-POINTINGS.txt',/fov_edge_lon
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.UPDATED-POINTINGS.txt',/fov_edge_lon
@@ -858,10 +858,9 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
   if keyword_set(fov_edge_lon)   then begin
      suffix = '_fov-edge-lon'
      xtitle=''
-     if keyword_set(xtit) then $
-     xtitle = 'FOV-Edges Longitude [deg]'
-     xmin   = - 30. ; deg 
-     xmax   = +460. ; deg 
+     if keyword_set(xtit) then xtitle = 'FOV-Edges Longitude [deg]'
+     xmin   =    0.     ; deg 
+     xmax   = +360.+90. ; deg 
  endif
   
   if keyword_set(fov_center_lon) then begin

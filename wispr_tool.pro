@@ -771,12 +771,14 @@ pro wrapper_radlon_coverage
 
  radlon_coverage_plot,table_file='table.CircularOrbit01.short.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
  return
- 
+
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.UPDATED-POINTINGS.txt',/fov_edge_lon
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.UPDATED-POINTINGS.txt',/fov_edge_lon
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
  
  return
+
+ 
  radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.12.UPDATED-POINTINGS.txt',/fov_edge_lon
 
 
@@ -897,8 +899,8 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
 
   plot,extlon,exthow,$
        xtitle=xtitle,ytitle='Heliocentric Height [R!DSUN!N]',$
-;      title='Circular Orbit of radius 10 R!DSUN!N',$
-       title='PSP Orbit-'+Orb_string,$     ;+' FOVs: Inner (blue), Outer (red).',$
+       title='Circular Orbit of Radius 10 R!DSUN!N',$
+;      title='PSP Orbit '+Orb_string,$     ;+' FOVs: Inner (blue), Outer (red).',$
        xr=[xmin,xmax],xstyle=1,$
        font=1,/nodata,$
        xticks=Nextlon,xtickname = extlonlab,xtickv=extlon
@@ -924,6 +926,14 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
      deltaO_E = 90. - alphaO_E  & LonO_E = Lon[i] + deltaO_E + shift_IO
      deltaO_C = 90. - alphaO_C  & LonO_C = Lon[i] + deltaO_C + shift_IO
      deltaO_W = 90. - alphaO_W  & LonO_W = Lon[i] + deltaO_W + shift_IO
+   ; Correct LonO_W with the idea of highlighting the max height that is
+   ; best constrained by the LOSs.
+     LonO_W = Lon[i]
+   ; But then LonO_C needs to be corrected accordingly:
+     LonO_C = (LonO_E+LonO_W)/2.
+   ; On same spirit, assign HOW = Dsun_Rsun.
+     HOW[i] = Dsun_Rsun[i]
+   
   endif
 
     if keyword_set(fov_center_lon) then begin

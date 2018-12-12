@@ -770,14 +770,13 @@ end
 pro wrapper_radlon_coverage
 
  radlon_coverage_plot,table_file='table.CircularOrbit01.short.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
-
-
+ return
+ 
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.UPDATED-POINTINGS.txt',/fov_edge_lon
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.UPDATED-POINTINGS.txt',/fov_edge_lon
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
  
  return
-
  
  radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.12.UPDATED-POINTINGS.txt',/fov_edge_lon
 
@@ -898,7 +897,7 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
 
   plot,extlon,exthow,$
        xtitle=xtitle,ytitle='Heliocentric Height [R!DSUN!N]',$
-       title='Circular Orbit of Radius 10 R!DSUN!N',$
+       title='Circular Orbit of Radius 10 R!DSUN!N',yr=[1.,11.],ystyle=1,$
 ;      title='PSP Orbit '+Orb_string,$     ;+' FOVs: Inner (blue), Outer (red).',$
        xr=[xmin,xmax],xstyle=1,$
        font=1,/nodata,$
@@ -957,20 +956,21 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
        LonO_W = Lon[i] + shift_IO
     endif
    
-     if i eq 0 or i eq perihelion or i eq Ndat-1 then thick=4
+;    if i eq 0 or i eq perihelion or i eq Ndat-1 then thick=4
+     if (Orb[0] eq 12 or Orb[0] eq 24) AND (i+1 ge 7 AND i+1 le Ndat-6) then thick=4
      oplot,[LonI_E,LonI_W],[HIE[i],HIW[i]],th=thick,color=blue
      oplot,[LonO_E,LonO_W],[HOE[i],HOW[i]],th=thick,color=red
      if i eq 0 then begin
-     oplot,[LonI_C],[(HIE[i]+HIW[i])/2.],th=thick,color=blue,psym=4,symsize=size
-     oplot,[LonO_C],[(HOE[i]+HOW[i])/2.],th=thick,color=red ,psym=4,symsize=size
+     oplot,[LonI_E],[HIE[i]],th=thick,color=blue,psym=4,symsize=size
+     oplot,[LonO_W],[HOW[i]],th=thick,color=red ,psym=4,symsize=size
      endif
      if i eq perihelion then begin
-     oplot,[LonI_C],[(HIE[i]+HIW[i])/2.],th=thick,color=blue,psym=2,symsize=size
-     oplot,[LonO_C],[(HOE[i]+HOW[i])/2.],th=thick,color=red ,psym=2,symsize=size
+     oplot,[LonI_E],[HIE[i]],th=thick,color=blue,psym=2,symsize=size
+     oplot,[LonO_W],[HOW[i]],th=thick,color=red ,psym=2,symsize=size
      endif
      if i eq Ndat-1 then begin
-     oplot,[LonI_C],[(HIE[i]+HIW[i])/2.],th=thick,color=blue,psym=5,symsize=size
-     oplot,[LonO_C],[(HOE[i]+HOW[i])/2.],th=thick,color=red ,psym=5,symsize=size
+     oplot,[LonI_E],[HIE[i]],th=thick,color=blue,psym=5,symsize=size
+     oplot,[LonO_W],[HOW[i]],th=thick,color=red ,psym=5,symsize=size
      endif
   endfor
   loadct,0

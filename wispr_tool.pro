@@ -769,14 +769,15 @@ end
 
 pro wrapper_radlon_coverage
 
- radlon_coverage_plot,table_file='table.CircularOrbit01.short.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
- return
- 
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.UPDATED-POINTINGS.txt',/fov_edge_lon
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.UPDATED-POINTINGS.txt',/fov_edge_lon
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
  
  return
+
+ radlon_coverage_plot,table_file='table.CircularOrbit01.short.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
+ return
+ 
  
  radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.12.UPDATED-POINTINGS.txt',/fov_edge_lon
 
@@ -897,8 +898,8 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
 
   plot,extlon,exthow,$
        xtitle=xtitle,ytitle='Heliocentric Height [R!DSUN!N]',$
-       title='Circular Orbit of Radius 10 R!DSUN!N',yr=[1.,11.],ystyle=1,$
-;      title='PSP Orbit '+Orb_string,$     ;+' FOVs: Inner (blue), Outer (red).',$
+;      title='Circular Orbit of Radius 10 R!DSUN!N',yr=[1.,11.],ystyle=1,$
+       title='PSP Orbit '+Orb_string,$     ;+' FOVs: Inner (blue), Outer (red).',$
        xr=[xmin,xmax],xstyle=1,$
        font=1,/nodata,$
        xticks=Nextlon,xtickname = extlonlab,xtickv=extlon
@@ -914,7 +915,7 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
   perihelion = median(where(HIE eq min(HIE)))
 ;common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,alphaO_W ; all in deg  
   for i=0,Ndat-1 do begin
-     thick=1
+     lnsty=2
      
     if keyword_set(fov_edge_lon) then begin
      shift_IO =  0. ; deg
@@ -957,9 +958,10 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
     endif
    
 ;    if i eq 0 or i eq perihelion or i eq Ndat-1 then thick=4
-     if (Orb[0] eq 12 or Orb[0] eq 24) AND (i+1 ge 7 AND i+1 le Ndat-6) then thick=4
-     oplot,[LonI_E,LonI_W],[HIE[i],HIW[i]],th=thick,color=blue
-     oplot,[LonO_E,LonO_W],[HOE[i],HOW[i]],th=thick,color=red
+    if  Orb[0] eq 1                                                    then lnsty=0
+    if (Orb[0] eq 12 or Orb[0] eq 24) AND (i+1 ge 7 AND i+1 le Ndat-5) then lnsty=0
+     oplot,[LonI_E,LonI_W],[HIE[i],HIW[i]],linestyle=lnsty,color=blue
+     oplot,[LonO_E,LonO_W],[HOE[i],HOW[i]],linestyle=lnsty,color=red
      if i eq 0 then begin
      oplot,[LonI_E],[HIE[i]],th=thick,color=blue,psym=4,symsize=size
      oplot,[LonO_W],[HOW[i]],th=thick,color=red ,psym=4,symsize=size
@@ -1038,7 +1040,7 @@ goto,updated_values
   alphaO_E = alphaO_C - deltaO/2.
   alphaO_W = alphaO_C + deltaO/2.
   
-updated_values:
+  updated_values:
 ; These are the values updated by Angelos on February-21-2018, during
 ; the WISPR planning meeting at Maryland.
   alphaI_C = 0.5*( 51.4 + 13.5) ; deg 

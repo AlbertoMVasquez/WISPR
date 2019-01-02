@@ -772,11 +772,11 @@ pro wrapper_radlon_coverage
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.01.UPDATED-POINTINGS.txt',/fov_edge_lon
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.UPDATED-POINTINGS.txt',/fov_edge_lon
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
- 
  return
 
  radlon_coverage_plot,table_file='table.CircularOrbit01.short.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
  return
+
  
  
  radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.12.UPDATED-POINTINGS.txt',/fov_edge_lon
@@ -859,8 +859,18 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
      suffix = '_fov-edge-lon'
      xtitle=''
      if keyword_set(xtit) then xtitle = 'FOV-Edges Longitude [deg]'
-     xmin   =    0.     ; deg 
-     xmax   = +360.+90. ; deg 
+     if Orb[0] eq  1 then begin
+     xmin   =    0.             ; deg 
+     xmax   =  280.             ; deg
+     endif
+     if Orb[0] eq 12 then begin
+     xmin   =  140.             ; deg 
+     xmax   =  360.+60.         ; deg
+     endif
+     if Orb[0] eq 24 then begin
+     xmin   =  200.             ; deg 
+     xmax   =  360.+120.        ; deg
+     endif
  endif
   
   if keyword_set(fov_center_lon) then begin
@@ -874,7 +884,7 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
   DEVICE,XSIZE=20.0,YSIZE=10.0,scale_factor=10
   !p.charsize=1.5
 
-  dextlon   = 60
+  dextlon   = 20
   Nextlon   = (xmax-xmin)/dextlon + 1
    extlon   = xmin+dextlon*findgen(Nextlon)
   extlonlab = strarr(Nextlon)
@@ -889,20 +899,15 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
   
   exthow=max(how)+fltarr(Nextlon)
 
-  goto,skip
-  plot,lon,HOW,xtitle=xtitle,ytitle='Heliocentric Height [R!DSUN!N]',$
-       title='Orbit-'+Orb_string+' FOVs: Inner (blue), Outer (red).',$
-       xr=[xmin,xmax],xstyle=1,$
-       font=1,/nodata
-  skip:
-
+;  stop
+  
   plot,extlon,exthow,$
        xtitle=xtitle,ytitle='Heliocentric Height [R!DSUN!N]',$
 ;      title='Circular Orbit of Radius 10 R!DSUN!N',yr=[1.,11.],ystyle=1,$
        title='PSP Orbit '+Orb_string,$     ;+' FOVs: Inner (blue), Outer (red).',$
        xr=[xmin,xmax],xstyle=1,$
        font=1,/nodata,$
-       xticks=Nextlon,xtickname = extlonlab,xtickv=extlon
+       xticks=Nextlon-1,xtickname = extlonlab,xtickv=extlon
 
   oplot,  0*[1,1],max(how)*[0,2]
   oplot,360*[1,1],max(how)*[0,2]
@@ -911,7 +916,7 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
   blue=100
   red =200
   thick=1
-  size=1
+  size=2
   perihelion = median(where(HIE eq min(HIE)))
 ;common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,alphaO_W ; all in deg  
   for i=0,Ndat-1 do begin
@@ -960,20 +965,23 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
 ;    if i eq 0 or i eq perihelion or i eq Ndat-1 then thick=4
     if  Orb[0] eq 1                                                    then lnsty=0
     if (Orb[0] eq 12 or Orb[0] eq 24) AND (i+1 ge 7 AND i+1 le Ndat-5) then lnsty=0
-     oplot,[LonI_E,LonI_W],[HIE[i],HIW[i]],linestyle=lnsty,color=blue
-     oplot,[LonO_E,LonO_W],[HOE[i],HOW[i]],linestyle=lnsty,color=red
+     shiftLon = 0.
+     if Orb[0] eq 24 and LonO_E lt 180. then shiftLon=360.   
+     oplot,[LonI_E,LonI_W]+shiftLon,[HIE[i],HIW[i]],linestyle=lnsty,color=blue
+     oplot,[LonO_E,LonO_W]+shiftLon,[HOE[i],HOW[i]],linestyle=lnsty,color=red
      if i eq 0 then begin
-     oplot,[LonI_E],[HIE[i]],th=thick,color=blue,psym=4,symsize=size
-     oplot,[LonO_W],[HOW[i]],th=thick,color=red ,psym=4,symsize=size
+     oplot,[LonI_E]+shiftLon,[HIE[i]],th=thick,color=blue,psym=4,symsize=size
+     oplot,[LonO_W]+shiftLon,[HOW[i]],th=thick,color=red ,psym=4,symsize=size
      endif
      if i eq perihelion then begin
-     oplot,[LonI_E],[HIE[i]],th=thick,color=blue,psym=2,symsize=size
-     oplot,[LonO_W],[HOW[i]],th=thick,color=red ,psym=2,symsize=size
+     oplot,[LonI_E]+shiftLon,[HIE[i]],th=thick,color=blue,psym=2,symsize=size
+     oplot,[LonO_W]+shiftLon,[HOW[i]],th=thick,color=red ,psym=2,symsize=size
      endif
      if i eq Ndat-1 then begin
-     oplot,[LonI_E],[HIE[i]],th=thick,color=blue,psym=5,symsize=size
-     oplot,[LonO_W],[HOW[i]],th=thick,color=red ,psym=5,symsize=size
+     oplot,[LonI_E]+shiftLon,[HIE[i]],th=thick,color=blue,psym=5,symsize=size
+     oplot,[LonO_W]+shiftLon,[HOW[i]],th=thick,color=red ,psym=5,symsize=size
      endif
+     shiftLon = 0.
   endfor
   loadct,0
   ps2

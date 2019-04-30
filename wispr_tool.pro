@@ -773,11 +773,10 @@ pro wrapper_radlon_coverage
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.12.UPDATED-POINTINGS.txt',/fov_edge_lon
  radlon_coverage_plot,table_file='table.UnifLong.SciOrbit.24.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
  return
-
  radlon_coverage_plot,table_file='table.CircularOrbit01.short.UPDATED-POINTINGS.txt',/fov_edge_lon,/xtit
  return
 
- 
+
  
  radlon_coverage_plot,table_file='table.UnifLong.ExtOrbit.12.UPDATED-POINTINGS.txt',/fov_edge_lon
 
@@ -858,18 +857,18 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
   if keyword_set(fov_edge_lon)   then begin
      suffix = '_fov-edge-lon'
      xtitle=''
-     if keyword_set(xtit) then xtitle = 'FOV-Edges Longitude [deg]'
+     if keyword_set(xtit) then xtitle = 'Longitude [deg]'
      if Orb[0] eq  1 then begin
-     xmin   =    0.             ; deg 
-     xmax   =  280.             ; deg
+     xmin   =   10.             ; deg 
+     xmax   =  120.             ; deg
      endif
      if Orb[0] eq 12 then begin
-     xmin   =  140.             ; deg 
-     xmax   =  360.+60.         ; deg
+     xmin   =  180.             ; deg 
+     xmax   =  360.+40.         ; deg
      endif
      if Orb[0] eq 24 then begin
-     xmin   =  200.             ; deg 
-     xmax   =  360.+120.        ; deg
+     xmin   =  210.             ; deg 
+     xmax   =  360.+100.        ; deg
      endif
  endif
   
@@ -905,8 +904,7 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
        xtitle=xtitle,ytitle='Heliocentric Height [R!DSUN!N]',$
 ;      title='Circular Orbit of Radius 10 R!DSUN!N',yr=[1.,11.],ystyle=1,$
        title='PSP Orbit '+Orb_string,$     ;+' FOVs: Inner (blue), Outer (red).',$
-       xr=[xmin,xmax],xstyle=1,$
-       font=1,/nodata,$
+       xr=[xmin,xmax],xstyle=1,font=1,/nodata,$
        xticks=Nextlon-1,xtickname = extlonlab,xtickv=extlon
 
   oplot,  0*[1,1],max(how)*[0,2]
@@ -915,7 +913,7 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
   loadct,12
   blue=100
   red =200
-  thick=1
+  thick=4
   size=2
   perihelion = median(where(HIE eq min(HIE)))
 ;common FOV_POINTINGS,alphaI_C,deltaI,alphaI_E,alphaI_W,alphaO_C,deltaO,alphaO_E,alphaO_W ; all in deg  
@@ -936,9 +934,8 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
    ; But then LonO_C needs to be corrected accordingly:
      LonO_C = (LonO_E+LonO_W)/2.
    ; On same spirit, assign HOW = Dsun_Rsun.
-     HOW[i] = Dsun_Rsun[i]
-   
-  endif
+     HOW[i] = Dsun_Rsun[i]   
+    endif
 
     if keyword_set(fov_center_lon) then begin
        shift_IO =  0. ; deg
@@ -961,14 +958,16 @@ pro radlon_coverage_plot,table_file=table_file,input_dir=input_dir,$
        LonO_C = Lon[i] + shift_IO       
        LonO_W = Lon[i] + shift_IO
     endif
-   
-;    if i eq 0 or i eq perihelion or i eq Ndat-1 then thick=4
-    if  Orb[0] eq 1                                                    then lnsty=0
-    if (Orb[0] eq 12 or Orb[0] eq 24) AND (i+1 ge 7 AND i+1 le Ndat-5) then lnsty=0
+
+    lnsty=0
+;   if i eq 0 or i eq perihelion or i eq Ndat-1 then thick=4
+    if (Orb[0] eq 12 or Orb[0] eq 24) AND (i+1 lt 7 OR i+1 gt Ndat-5) then lnsty=2
+    if (Orb[0] eq  1                ) AND (i+1 lt 2 OR i+1 gt Ndat-2) then lnsty=2
+
      shiftLon = 0.
      if Orb[0] eq 24 and LonO_E lt 180. then shiftLon=360.   
-     oplot,[LonI_E,LonI_W]+shiftLon,[HIE[i],HIW[i]],linestyle=lnsty,color=blue
-     oplot,[LonO_E,LonO_W]+shiftLon,[HOE[i],HOW[i]],linestyle=lnsty,color=red
+     oplot,[LonI_E,LonI_W]+shiftLon,[HIE[i],HIW[i]],linestyle=lnsty,color=blue,th=thick
+     oplot,[LonO_E,LonO_W]+shiftLon,[HOE[i],HOW[i]],linestyle=lnsty,color=red,th=thick
      if i eq 0 then begin
      oplot,[LonI_E]+shiftLon,[HIE[i]],th=thick,color=blue,psym=4,symsize=size
      oplot,[LonO_W]+shiftLon,[HOW[i]],th=thick,color=red ,psym=4,symsize=size
